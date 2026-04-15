@@ -737,7 +737,8 @@
     "systemSettings": "設定",
     "feedback": "フィードバック",
     "login": "ログイン",
-    "logout": "ログアウト"
+    "logout": "ログアウト",
+    "audit": "監査"
   },
   "statistics": {
     "title": "使用統計",
@@ -2001,5 +2002,43 @@
     "autoDetected": "自動検出",
     "selectPlatform": "プラットフォームを選択",
     "successStats": "{targets} 個のターゲット、{bindings} 個のバインディングを作成しました"
+  },
+  "audit": {
+    "title": "監査ログ",
+    "description": "チームのAI使用状況と会話内容を確認",
+    "filters": {
+      "user": "ユーザー",
+      "model": "モデル",
+      "timeRange": "期間",
+      "search": "要約を検索...",
+      "startDate": "開始日",
+      "endDate": "終了日",
+      "apply": "適用",
+      "reset": "リセット"
+    },
+    "columns": {
+      "time": "時間",
+      "user": "ユーザー",
+      "model": "モデル",
+      "requests": "リクエスト数",
+      "tokens": "トークン",
+      "cost": "コスト",
+      "summary": "要約"
+    },
+    "chat": {
+      "title": "セッション監査",
+      "back": "監査一覧に戻る",
+      "systemPrompt": "システムプロンプト",
+      "loadMore": "さらに読み込む",
+      "sessionInfo": "セッション情報",
+      "totalRounds": "総ラウンド数",
+      "totalTokens": "総トークン数",
+      "totalCost": "総コスト",
+      "duration": "所要時間",
+      "noData": "このセッションの監査データはありません",
+      "userMessage": "ユーザー",
+      "assistantMessage": "アシスタント",
+      "tokens": "トークン"
+    }
   }
 }

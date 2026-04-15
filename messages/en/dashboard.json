@@ -739,7 +739,8 @@
     "systemSettings": "Settings",
     "feedback": "Feedback",
     "login": "Login",
-    "logout": "Logout"
+    "logout": "Logout",
+    "audit": "Audit"
   },
   "statistics": {
     "title": "Usage Statistics",
@@ -2072,5 +2073,43 @@
     "autoDetected": "Auto-detected",
     "selectPlatform": "Select platform",
     "successStats": "Created {targets} targets, {bindings} bindings"
+  },
+  "audit": {
+    "title": "Audit Logs",
+    "description": "Review team AI usage and conversation content",
+    "filters": {
+      "user": "User",
+      "model": "Model",
+      "timeRange": "Time Range",
+      "search": "Search summary...",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "apply": "Apply",
+      "reset": "Reset"
+    },
+    "columns": {
+      "time": "Time",
+      "user": "User",
+      "model": "Model",
+      "requests": "Requests",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "summary": "Summary"
+    },
+    "chat": {
+      "title": "Session Audit",
+      "back": "Back to Audit List",
+      "systemPrompt": "System Prompt",
+      "loadMore": "Load More",
+      "sessionInfo": "Session Info",
+      "totalRounds": "Total Rounds",
+      "totalTokens": "Total Tokens",
+      "totalCost": "Total Cost",
+      "duration": "Duration",
+      "noData": "No audit data for this session",
+      "userMessage": "User",
+      "assistantMessage": "Assistant",
+      "tokens": "tokens"
+    }
   }
 }

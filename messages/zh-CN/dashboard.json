@@ -739,7 +739,8 @@
     "systemSettings": "系统设置",
     "feedback": "反馈问题",
     "login": "登录",
-    "logout": "退出登录"
+    "logout": "退出登录",
+    "audit": "审计"
   },
   "statistics": {
     "title": "使用统计",
@@ -2024,5 +2025,43 @@
     "autoDetected": "自动识别",
     "selectPlatform": "请选择平台",
     "successStats": "已创建 {targets} 个目标，{bindings} 个绑定"
+  },
+  "audit": {
+    "title": "审计日志",
+    "description": "查看团队 AI 使用记录和对话内容",
+    "filters": {
+      "user": "用户",
+      "model": "模型",
+      "timeRange": "时间范围",
+      "search": "搜索摘要...",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "apply": "应用",
+      "reset": "重置"
+    },
+    "columns": {
+      "time": "时间",
+      "user": "用户",
+      "model": "模型",
+      "requests": "请求数",
+      "tokens": "Tokens",
+      "cost": "费用",
+      "summary": "摘要"
+    },
+    "chat": {
+      "title": "会话审计",
+      "back": "返回审计列表",
+      "systemPrompt": "系统提示词",
+      "loadMore": "加载更多",
+      "sessionInfo": "会话信息",
+      "totalRounds": "总轮次",
+      "totalTokens": "总 Tokens",
+      "totalCost": "总费用",
+      "duration": "时长",
+      "noData": "该会话无审计数据",
+      "userMessage": "用户",
+      "assistantMessage": "助手",
+      "tokens": "tokens"
+    }
   }
 }
