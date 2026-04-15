@@ -46,7 +46,11 @@ services:
       start_period: 5s
 
   app:
-    image: ghcr.io/ding113/claude-code-hub:latest
+    # Use local build with audit feature (replace with official image to disable audit)
+    # image: ghcr.io/ding113/claude-code-hub:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
