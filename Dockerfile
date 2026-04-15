@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 FROM oven/bun:debian AS deps
 WORKDIR /app
-COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile
+COPY package.json bun.lockb* .npmrc* bunfig.toml* ./
+RUN bun install --frozen-lockfile --registry https://registry.npmmirror.com
 
 FROM oven/bun:debian AS builder
 WORKDIR /app
