@@ -2,7 +2,7 @@
 FROM oven/bun:debian AS deps
 WORKDIR /app
 COPY package.json bun.lockb* .npmrc* bunfig.toml* ./
-RUN bun install --registry https://registry.npmmirror.com
+RUN bun install
 
 FROM oven/bun:debian AS builder
 WORKDIR /app
