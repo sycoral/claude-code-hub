@@ -23,18 +23,31 @@ function extractTextContent(content: unknown): string {
         if (typeof block === "string") return block;
         if (block && typeof block === "object") {
           const b = block as Record<string, unknown>;
-          // Normal text
+          // Normal text (Claude)
           if (b.type === "text" && typeof b.text === "string") return b.text;
-          // Thinking
+          // Input text (Codex/OpenAI Response API)
+          if (b.type === "input_text" && typeof b.text === "string") return b.text;
+          // Output text (Codex response)
+          if (b.type === "output_text" && typeof b.text === "string") return b.text;
+          // Thinking (Claude)
           if (b.type === "thinking" && typeof b.thinking === "string")
             return `<details><summary>thinking</summary>\n\n${b.thinking}\n\n</details>`;
-          // Tool use
+          // Reasoning (Codex)
+          if (b.type === "reasoning" && typeof b.text === "string")
+            return `<details><summary>reasoning</summary>\n\n${b.text}\n\n</details>`;
+          // Tool use (Claude)
           if (b.type === "tool_use") {
             const name = b.name ?? "unknown";
             const input = typeof b.input === "string" ? b.input : JSON.stringify(b.input, null, 2);
             return `<details><summary>tool_use: ${name}</summary>\n\n\`\`\`json\n${input}\n\`\`\`\n\n</details>`;
           }
-          // Tool result
+          // Function call (Codex)
+          if (b.type === "function_call") {
+            const name = b.name ?? "unknown";
+            const args = typeof b.arguments === "string" ? b.arguments : JSON.stringify(b.arguments, null, 2);
+            return `<details><summary>function_call: ${name}</summary>\n\n\`\`\`json\n${args}\n\`\`\`\n\n</details>`;
+          }
+          // Tool result (Claude)
           if (b.type === "tool_result") {
             const inner = Array.isArray(b.content)
               ? (b.content as unknown[])
@@ -49,6 +62,12 @@ function extractTextContent(content: unknown): string {
                 : JSON.stringify(b.content, null, 2);
             const preview = typeof inner === "string" && inner.length > 100 ? `${inner.slice(0, 100)}...` : inner;
             return `<details><summary>tool_result: ${preview}</summary>\n\n${inner}\n\n</details>`;
+          }
+          // Function call output (Codex)
+          if (b.type === "function_call_output") {
+            const output = typeof b.output === "string" ? b.output : JSON.stringify(b.output, null, 2);
+            const preview = output.length > 100 ? `${output.slice(0, 100)}...` : output;
+            return `<details><summary>function_output: ${preview}</summary>\n\n${output}\n\n</details>`;
           }
           // Image
           if (b.type === "image" || b.type === "image_url") {
@@ -70,8 +89,13 @@ function extractResponseText(response: unknown): string {
   const resp = response as Record<string, unknown>;
 
   // Claude format: response.content[]
-  if (Array.isArray(resp.content)) {
+  if (Array.isArray(resp.content) && resp.content.length > 0) {
     return extractTextContent(resp.content);
+  }
+
+  // Codex format: response.output[]
+  if (Array.isArray(resp.output)) {
+    return extractTextContent(resp.output);
   }
 
   // OpenAI format: response.choices[].message.content
@@ -205,26 +229,51 @@ export function AuditChatViewClient() {
           {messages.map((msg) => {
             const bubbles: React.ReactNode[] = [];
 
-            // Messages are stored incrementally: only the new interaction for this turn
-            const msgList = Array.isArray(msg.request.messages)
+            // Support both Claude (messages[]) and Codex (input[]) formats
+            const rawMessages = Array.isArray(msg.request.messages)
               ? (msg.request.messages as Array<Record<string, unknown>>)
               : [];
+            const rawInput = Array.isArray(msg.request.input)
+              ? (msg.request.input as Array<Record<string, unknown>>)
+              : [];
+            const msgList = rawMessages.length > 0 ? rawMessages : rawInput;
 
-            // System prompt (only present in seq 1)
-            if (msg.request.system) {
+            // System prompt (Claude) or instructions (Codex) — only present in seq 1
+            const systemContent = msg.request.system ?? msg.request.instructions;
+            if (systemContent) {
               bubbles.push(
                 <AuditChatBubble
                   key={`${msg.seq}-system`}
                   role="system"
-                  content={extractTextContent(msg.request.system)}
+                  content={extractTextContent(systemContent)}
                   timestamp={msg.ts}
                 />
               );
             }
 
             // Render all stored messages (already extracted as new-only by backend)
+            // Map roles: Claude (user/assistant) + Codex (user/developer/assistant + type-based items)
             for (const [idx, m] of msgList.entries()) {
               const role = m.role as string;
+              const type = m.type as string;
+
+              // Codex function_call / function_call_output — show as tool interaction
+              if (type === "function_call" || type === "function_call_output") {
+                bubbles.push(
+                  <AuditChatBubble
+                    key={`${msg.seq}-tool-${idx}`}
+                    role={type === "function_call" ? "assistant" : "user"}
+                    content={extractTextContent(
+                      type === "function_call"
+                        ? [{ type: "function_call", name: m.name, arguments: m.arguments }]
+                        : [{ type: "function_call_output", output: m.output }]
+                    )}
+                    timestamp={msg.ts}
+                  />
+                );
+                continue;
+              }
+
               if (role === "user" || role === "assistant") {
                 bubbles.push(
                   <AuditChatBubble

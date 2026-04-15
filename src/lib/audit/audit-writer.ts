@@ -51,19 +51,32 @@ export async function writeAuditRecord(
     }
 
     // 2. Extract the new user interaction from this turn (stateless, no counter)
-    const allMessages = Array.isArray(session.request.message.messages)
+    //    Support both Claude format (messages[]) and Codex/OpenAI Response API format (input[])
+    const rawMessages = Array.isArray(session.request.message.messages)
       ? (session.request.message.messages as Array<Record<string, unknown>>)
       : [];
+    const rawInput = Array.isArray(session.request.message.input)
+      ? (session.request.message.input as Array<Record<string, unknown>>)
+      : [];
+    const allMessages = rawMessages.length > 0 ? rawMessages : rawInput;
     const newMessages = extractNewMessages(allMessages);
 
     const incrementalRequest: Record<string, unknown> = {
       ...session.request.message,
-      messages: newMessages,
     };
 
-    // Only include system prompt for the first request in a session
+    // Store extracted new messages in the appropriate field
+    if (rawInput.length > 0 && rawMessages.length === 0) {
+      incrementalRequest.input = newMessages;
+      delete incrementalRequest.messages;
+    } else {
+      incrementalRequest.messages = newMessages;
+    }
+
+    // Only include system prompt / instructions for the first request in a session
     if (session.requestSequence > 1) {
       delete incrementalRequest.system;
+      delete incrementalRequest.instructions;
     }
 
     // 3. Preprocess content (strip images, truncate)
@@ -152,9 +165,10 @@ export function extractNewMessages(
   if (messages.length === 0) return [];
 
   const lastMsg = messages[messages.length - 1];
+  const lastRole = lastMsg.role as string;
 
-  // Case 1: last message is a user message
-  if (lastMsg.role === "user") {
+  // Case 1: last message is a user message (Claude: role=user, Codex: role=user with type=message)
+  if (lastRole === "user") {
     // If it's a tool_result, include the preceding assistant(tool_use) as context
     if (isToolResultMessage(lastMsg) && messages.length >= 2) {
       const prevMsg = messages[messages.length - 2];
@@ -171,9 +185,13 @@ export function extractNewMessages(
 }
 
 /**
- * Check if a user message is a tool_result (not a real user input).
+ * Check if a message is a tool result (not a real user input).
+ * Supports Claude (tool_result) and Codex (function_call_output) formats.
  */
 function isToolResultMessage(msg: Record<string, unknown>): boolean {
+  // Codex: { type: "function_call_output", ... }
+  if (msg.type === "function_call_output") return true;
+  // Claude: user message with tool_result content blocks
   if (msg.role !== "user") return false;
   const content = msg.content;
   if (Array.isArray(content)) {
@@ -185,9 +203,13 @@ function isToolResultMessage(msg: Record<string, unknown>): boolean {
 }
 
 /**
- * Check if an assistant message contains tool_use blocks.
+ * Check if a message contains tool use / function call blocks.
+ * Supports Claude (tool_use) and Codex (function_call) formats.
  */
 function isToolUseMessage(msg: Record<string, unknown>): boolean {
+  // Codex: { type: "function_call", ... }
+  if (msg.type === "function_call") return true;
+  // Claude: assistant message with tool_use content blocks
   if (msg.role !== "assistant") return false;
   const content = msg.content;
   if (Array.isArray(content)) {
@@ -241,7 +263,7 @@ function reassembleSSEResponse(sseText: string): unknown {
       usage = data.usage as Record<string, unknown>;
     }
 
-    // OpenAI format (no event name, data has choices[].delta)
+    // OpenAI chat format (choices[].delta)
     if (Array.isArray(data.choices)) {
       for (const choice of data.choices as Record<string, unknown>[]) {
         if (typeof choice.delta === "object" && choice.delta) {
@@ -252,6 +274,17 @@ function reassembleSSEResponse(sseText: string): unknown {
         }
       }
       model = model ?? (data.model as string);
+    }
+
+    // Codex Response API format (response.output_text.delta, response.output[])
+    if (data.type === "response.output_text.delta" && typeof data.delta === "string") {
+      textParts.push(data.delta);
+    }
+    if (data.type === "response.completed" && typeof data.response === "object" && data.response) {
+      const resp = data.response as Record<string, unknown>;
+      model = model ?? (resp.model as string);
+      if (typeof resp.status === "string") stopReason = resp.status;
+      if (typeof resp.usage === "object" && resp.usage) usage = resp.usage as Record<string, unknown>;
     }
   }
 

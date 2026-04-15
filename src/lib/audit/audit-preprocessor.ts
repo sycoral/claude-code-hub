@@ -37,8 +37,12 @@ interface PreprocessResult {
  * Returns empty string if no user messages found.
  */
 export function extractSummary(request: RequestLike, maxLength: number): string {
+  // Support both Claude (messages[]) and Codex/OpenAI Response API (input[]) formats
   const messages = request.messages ?? [];
-  const userMessages = messages.filter((m) => m.role === "user");
+  const input = (request as Record<string, unknown>).input;
+  const allMessages = messages.length > 0 ? messages : (Array.isArray(input) ? input as Message[] : []);
+
+  const userMessages = allMessages.filter((m) => m.role === "user");
   const lastUser = userMessages.length > 0 ? userMessages[userMessages.length - 1] : undefined;
   if (!lastUser) return "";
 
@@ -46,8 +50,9 @@ export function extractSummary(request: RequestLike, maxLength: number): string 
   if (typeof lastUser.content === "string") {
     text = lastUser.content;
   } else if (Array.isArray(lastUser.content)) {
+    // Claude: { type: "text", text: "..." } or Codex: { type: "input_text", text: "..." }
     const textBlock = lastUser.content.find(
-      (b) => b.type === "text" && typeof b.text === "string"
+      (b) => (b.type === "text" || b.type === "input_text") && typeof b.text === "string"
     );
     text = textBlock?.text ?? "";
   }
