@@ -1,5 +1,6 @@
 import { ResponseFixer } from "@/app/v1/_lib/proxy/response-fixer";
 import { AsyncTaskManager } from "@/lib/async-task-manager";
+import { auditHook } from "@/lib/audit/audit-hook";
 import { getEnvConfig } from "@/lib/config/env.schema";
 import { logger } from "@/lib/logger";
 import { requestCloudPriceTableSync } from "@/lib/price-sync/cloud-price-updater";
@@ -2231,6 +2232,7 @@ export class ProxyResponseHandler {
           sseEventCount: chunks.length,
           errorMessage: streamErrorMessage ?? undefined,
         });
+        void auditHook.onRequestComplete(session, allContent);
       };
 
       try {
@@ -3415,6 +3417,8 @@ export async function finalizeRequestStats(
       void deleteLiveChain(session.sessionId, session.requestSequence);
     }
   }
+
+  void auditHook.onRequestComplete(session, responseText);
 
   return normalizedUsage;
 }
