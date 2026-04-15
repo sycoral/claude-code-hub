@@ -31,19 +31,22 @@ interface PreprocessResult {
 }
 
 /**
- * Extract the first user message text from a request object, truncated to maxLength characters.
+ * Extract the LAST user message text from a request object, truncated to maxLength characters.
+ * Uses the last user message because each API request carries the full conversation history,
+ * and the last user message represents the actual new input for this request.
  * Returns empty string if no user messages found.
  */
 export function extractSummary(request: RequestLike, maxLength: number): string {
   const messages = request.messages ?? [];
-  const firstUser = messages.find((m) => m.role === "user");
-  if (!firstUser) return "";
+  const userMessages = messages.filter((m) => m.role === "user");
+  const lastUser = userMessages.length > 0 ? userMessages[userMessages.length - 1] : undefined;
+  if (!lastUser) return "";
 
   let text = "";
-  if (typeof firstUser.content === "string") {
-    text = firstUser.content;
-  } else if (Array.isArray(firstUser.content)) {
-    const textBlock = firstUser.content.find(
+  if (typeof lastUser.content === "string") {
+    text = lastUser.content;
+  } else if (Array.isArray(lastUser.content)) {
+    const textBlock = lastUser.content.find(
       (b) => b.type === "text" && typeof b.text === "string"
     );
     text = textBlock?.text ?? "";

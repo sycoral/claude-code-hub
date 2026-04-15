@@ -82,7 +82,10 @@ export async function getAuditSessions(params: {
       conditions.push(gte(auditLog.createdAt, new Date(startDate)));
     }
     if (endDate) {
-      conditions.push(lte(auditLog.createdAt, new Date(endDate)));
+      // Set to end of day (23:59:59.999) so records from the endDate are included
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      conditions.push(lte(auditLog.createdAt, endOfDay));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -271,5 +274,37 @@ export async function getAuditModels(): Promise<ActionResult<string[]>> {
   } catch (err) {
     logger.error({ err }, "Failed to fetch audit models");
     return { ok: false, error: "Failed to fetch audit models" };
+  }
+}
+
+export interface AuditUserItem {
+  userId: number;
+  userName: string;
+}
+
+export async function getAuditUsers(): Promise<ActionResult<AuditUserItem[]>> {
+  const authError = await requireAdmin();
+  if (authError) return authError;
+
+  try {
+    const rows = await db
+      .selectDistinct({
+        userId: auditLog.userId,
+        userName: auditLog.userName,
+      })
+      .from(auditLog)
+      .orderBy(auditLog.userName);
+
+    const users = rows
+      .filter((r) => r.userId != null)
+      .map((r) => ({
+        userId: r.userId,
+        userName: r.userName ?? `User ${r.userId}`,
+      }));
+
+    return { ok: true, data: users };
+  } catch (err) {
+    logger.error({ err }, "Failed to fetch audit users");
+    return { ok: false, error: "Failed to fetch audit users" };
   }
 }

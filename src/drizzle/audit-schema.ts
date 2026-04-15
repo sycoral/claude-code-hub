@@ -29,6 +29,8 @@ export const auditLog = pgTable(
     costUsd: numeric("cost_usd", { precision: 21, scale: 15 }).default("0"),
     statusCode: integer("status_code"),
 
+    totalMessages: integer("total_messages"),     // full messages count in original request (for incremental diff)
+
     contentSummary: text("content_summary"),
     contentPath: varchar("content_path", { length: 512 }),
     contentSize: integer("content_size"),

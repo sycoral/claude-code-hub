@@ -3,9 +3,13 @@ import { preprocessAuditContent, extractSummary } from "@/lib/audit/audit-prepro
 
 describe("audit-preprocessor", () => {
   describe("extractSummary", () => {
-    it("extracts first user message text up to limit", () => {
+    it("extracts last user message text up to limit", () => {
       const request = {
-        messages: [{ role: "user", content: "Hello world, this is a test message" }],
+        messages: [
+          { role: "user", content: "First question" },
+          { role: "assistant", content: "First answer" },
+          { role: "user", content: "Hello world, this is a test message" },
+        ],
       };
       expect(extractSummary(request, 20)).toBe("Hello world, this is");
     });
