@@ -68,6 +68,9 @@ services:
       LANGFUSE_SAMPLE_RATE: ${LANGFUSE_SAMPLE_RATE:-1.0}
       # 设置时区为上海
       TZ: Asia/Shanghai
+    volumes:
+      # 持久化审计数据到本地 ./data/audit 目录
+      - ./data/audit:/app/data/audit
     ports:
       - "${APP_PORT:-23000}:3000"
     restart: unless-stopped
