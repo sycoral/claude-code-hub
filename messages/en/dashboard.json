@@ -2084,6 +2084,9 @@
       "search": "Search summary...",
       "startDate": "Start Date",
       "endDate": "End Date",
+      "today": "Today",
+      "last7days": "7 Days",
+      "last30days": "30 Days",
       "apply": "Apply",
       "reset": "Reset"
     },

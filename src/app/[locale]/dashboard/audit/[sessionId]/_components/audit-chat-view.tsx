@@ -22,13 +22,44 @@ function extractTextContent(content: unknown): string {
       .map((block) => {
         if (typeof block === "string") return block;
         if (block && typeof block === "object") {
-          if ("text" in block && typeof block.text === "string") return block.text;
-          if ("thinking" in block && typeof block.thinking === "string")
-            return `[thinking] ${block.thinking}`;
+          const b = block as Record<string, unknown>;
+          // Normal text
+          if (b.type === "text" && typeof b.text === "string") return b.text;
+          // Thinking
+          if (b.type === "thinking" && typeof b.thinking === "string")
+            return `<details><summary>thinking</summary>\n\n${b.thinking}\n\n</details>`;
+          // Tool use
+          if (b.type === "tool_use") {
+            const name = b.name ?? "unknown";
+            const input = typeof b.input === "string" ? b.input : JSON.stringify(b.input, null, 2);
+            return `<details><summary>tool_use: ${name}</summary>\n\n\`\`\`json\n${input}\n\`\`\`\n\n</details>`;
+          }
+          // Tool result
+          if (b.type === "tool_result") {
+            const inner = Array.isArray(b.content)
+              ? (b.content as unknown[])
+                  .map((c) => {
+                    if (typeof c === "string") return c;
+                    if (c && typeof c === "object" && "text" in c) return (c as Record<string, unknown>).text;
+                    return JSON.stringify(c);
+                  })
+                  .join("\n")
+              : typeof b.content === "string"
+                ? b.content
+                : JSON.stringify(b.content, null, 2);
+            const preview = typeof inner === "string" && inner.length > 100 ? `${inner.slice(0, 100)}...` : inner;
+            return `<details><summary>tool_result: ${preview}</summary>\n\n${inner}\n\n</details>`;
+          }
+          // Image
+          if (b.type === "image" || b.type === "image_url") {
+            return "[Image]";
+          }
+          // Fallback for known text field
+          if ("text" in b && typeof b.text === "string") return b.text;
         }
         return JSON.stringify(block);
       })
-      .join("\n");
+      .join("\n\n");
   }
   return JSON.stringify(content, null, 2);
 }
@@ -131,10 +162,9 @@ export function AuditChatViewClient() {
       : "-";
 
   return (
-    <div className="flex gap-6">
-      {/* Main chat area */}
-      <div className="min-w-0 flex-1 space-y-4">
-        {/* Header */}
+    <div className="space-y-3">
+      {/* Header + Stats bar */}
+      <div className="sticky top-16 z-10 space-y-2 bg-background pb-2">
         <div className="flex items-center gap-3">
           <Link href="/dashboard/audit">
             <Button variant="ghost" size="icon">
@@ -143,12 +173,23 @@ export function AuditChatViewClient() {
           </Link>
           <div>
             <h1 className="text-xl font-bold">{t("title")}</h1>
-            <p className="text-sm text-muted-foreground">{sessionId.slice(0, 16)}...</p>
+            <p className="font-mono text-xs text-muted-foreground">{sessionId}</p>
           </div>
         </div>
+        {sessionInfo && (
+          <AuditSessionStats
+            totalRounds={sessionInfo.requestCount}
+            totalTokens={sessionInfo.totalInputTokens + sessionInfo.totalOutputTokens}
+            totalCost={sessionInfo.totalCost}
+            duration={duration}
+            model={sessionInfo.model ?? "-"}
+            userName={sessionInfo.userName ?? "-"}
+          />
+        )}
+      </div>
 
-        {/* Messages */}
-        <div className="space-y-1">
+      {/* Messages */}
+      <div className="space-y-0.5">
           {hasMore && (
             <div className="flex justify-center py-2">
               <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={isLoading}>
@@ -164,8 +205,13 @@ export function AuditChatViewClient() {
           {messages.map((msg) => {
             const bubbles: React.ReactNode[] = [];
 
-            // System prompt (first message)
-            if (msg.seq === 1 && msg.request.system) {
+            // Messages are stored incrementally: only the new interaction for this turn
+            const msgList = Array.isArray(msg.request.messages)
+              ? (msg.request.messages as Array<Record<string, unknown>>)
+              : [];
+
+            // System prompt (only present in seq 1)
+            if (msg.request.system) {
               bubbles.push(
                 <AuditChatBubble
                   key={`${msg.seq}-system`}
@@ -176,54 +222,39 @@ export function AuditChatViewClient() {
               );
             }
 
-            // User messages from request.messages
-            if (Array.isArray(msg.request.messages)) {
-              const userMsgs = (msg.request.messages as Array<Record<string, unknown>>).filter(
-                (m) => m.role === "user"
-              );
-              for (const [idx, userMsg] of userMsgs.entries()) {
+            // Render all stored messages (already extracted as new-only by backend)
+            for (const [idx, m] of msgList.entries()) {
+              const role = m.role as string;
+              if (role === "user" || role === "assistant") {
                 bubbles.push(
                   <AuditChatBubble
-                    key={`${msg.seq}-user-${idx}`}
-                    role="user"
-                    content={extractTextContent(userMsg.content)}
+                    key={`${msg.seq}-${role}-${idx}`}
+                    role={role as "user" | "assistant"}
+                    content={extractTextContent(m.content)}
                     timestamp={msg.ts}
                   />
                 );
               }
             }
 
-            // Assistant response
+            // The actual new response for this seq
             if (msg.response) {
-              bubbles.push(
-                <AuditChatBubble
-                  key={`${msg.seq}-assistant`}
-                  role="assistant"
-                  content={extractResponseText(msg.response)}
-                  timestamp={msg.ts}
-                  tokens={msg._meta?.size}
-                />
-              );
+              const respText = extractResponseText(msg.response);
+              if (respText) {
+                bubbles.push(
+                  <AuditChatBubble
+                    key={`${msg.seq}-response`}
+                    role="assistant"
+                    content={respText}
+                    timestamp={msg.ts}
+                  />
+                );
+              }
             }
 
             return bubbles;
           })}
         </div>
-      </div>
-
-      {/* Stats sidebar */}
-      <div className="hidden w-72 shrink-0 lg:block">
-        {sessionInfo && (
-          <AuditSessionStats
-            totalRounds={sessionInfo.requestCount}
-            totalTokens={sessionInfo.totalInputTokens + sessionInfo.totalOutputTokens}
-            totalCost={sessionInfo.totalCost}
-            duration={duration}
-            model={sessionInfo.model ?? "-"}
-            userName={sessionInfo.userName ?? "-"}
-          />
-        )}
-      </div>
     </div>
   );
 }

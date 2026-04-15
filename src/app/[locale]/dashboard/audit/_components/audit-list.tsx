@@ -25,11 +25,16 @@ const PAGE_SIZE = 20;
 export function AuditListClient() {
   const t = useTranslations("dashboard.audit");
   const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<AuditFilterValues>({
-    search: "",
-    model: "",
-    startDate: "",
-    endDate: "",
+  const [filters, setFilters] = useState<AuditFilterValues>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return {
+      search: "",
+      userId: "",
+      model: "",
+      startDate: d.toISOString().slice(0, 10),
+      endDate: new Date().toISOString().slice(0, 10),
+    };
   });
 
   const { data, isLoading, error } = useQuery({
@@ -38,6 +43,7 @@ export function AuditListClient() {
       const result = await getAuditSessions({
         page,
         pageSize: PAGE_SIZE,
+        userId: filters.userId ? Number(filters.userId) : undefined,
         search: filters.search || undefined,
         model: filters.model || undefined,
         startDate: filters.startDate || undefined,

@@ -2013,6 +2013,9 @@
       "search": "要約を検索...",
       "startDate": "開始日",
       "endDate": "終了日",
+      "today": "今日",
+      "last7days": "7日間",
+      "last30days": "30日間",
       "apply": "適用",
       "reset": "リセット"
     },

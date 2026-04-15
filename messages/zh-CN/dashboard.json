@@ -2036,6 +2036,9 @@
       "search": "搜索摘要...",
       "startDate": "开始日期",
       "endDate": "结束日期",
+      "today": "今天",
+      "last7days": "7天",
+      "last30days": "30天",
       "apply": "应用",
       "reset": "重置"
     },
