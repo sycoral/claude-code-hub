@@ -26,7 +26,12 @@ function extractTextContent(content: unknown): string {
           // Normal text (Claude)
           if (b.type === "text" && typeof b.text === "string") return b.text;
           // Input text (Codex/OpenAI Response API)
-          if (b.type === "input_text" && typeof b.text === "string") return b.text;
+          // Skip <image> / </image> wrapper tags (Codex wraps images with these)
+          if (b.type === "input_text" && typeof b.text === "string") {
+            const trimmed = b.text.trim();
+            if (/^<\/?image\b[^>]*>$/.test(trimmed)) return "";
+            return b.text;
+          }
           // Output text (Codex response)
           if (b.type === "output_text" && typeof b.text === "string") return b.text;
           // Thinking (Claude)

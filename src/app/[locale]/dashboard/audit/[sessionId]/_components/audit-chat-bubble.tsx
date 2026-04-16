@@ -11,11 +11,11 @@ const sanitizeSchema = {
   tagNames: [...(defaultSchema.tagNames ?? []), "details", "summary", "img"],
   attributes: {
     ...defaultSchema.attributes,
-    img: ["src", "alt", "width", "height", "style"],
+    img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "width", "height", "className"],
   },
   protocols: {
     ...defaultSchema.protocols,
-    src: ["data", "https"],
+    src: [...(defaultSchema.protocols?.src ?? []), "data"],
   },
 };
 import { useTranslations } from "next-intl";
