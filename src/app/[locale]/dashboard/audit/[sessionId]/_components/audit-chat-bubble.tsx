@@ -5,10 +5,18 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 
-// Allow <details> and <summary> through sanitization, block everything else unsafe (like SVG <path>)
+// Allow <details>, <summary>, <img> through sanitization, block unsafe tags (like SVG <path>)
 const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "details", "summary"],
+  tagNames: [...(defaultSchema.tagNames ?? []), "details", "summary", "img"],
+  attributes: {
+    ...defaultSchema.attributes,
+    img: ["src", "alt", "width", "height", "style"],
+  },
+  protocols: {
+    ...defaultSchema.protocols,
+    src: ["data", "https"],
+  },
 };
 import { useTranslations } from "next-intl";
 import { useState } from "react";
@@ -110,6 +118,15 @@ function MarkdownContent({ content }: { content: string }) {
             <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5">
               {children}
             </summary>
+          );
+        },
+        img({ src, alt }) {
+          return (
+            <img
+              src={src}
+              alt={alt ?? "image"}
+              className="my-2 max-h-64 max-w-full rounded-md border object-contain"
+            />
           );
         },
       }}

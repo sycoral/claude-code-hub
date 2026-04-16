@@ -69,8 +69,25 @@ function extractTextContent(content: unknown): string {
             const preview = output.length > 100 ? `${output.slice(0, 100)}...` : output;
             return `<details><summary>function_output: ${preview}</summary>\n\n${output}\n\n</details>`;
           }
-          // Image
-          if (b.type === "image" || b.type === "image_url") {
+          // Image (Claude: type=image with source.data, Codex: type=input_image with image_url)
+          if (b.type === "image" && typeof b.source === "object" && b.source) {
+            const src = b.source as Record<string, unknown>;
+            if (typeof src.data === "string" && src.data.length > 100) {
+              const mediaType = (src.media_type as string) || "image/png";
+              const sizeNote = src._truncated ? ` (thumbnail, original: ${src._originalSizeKB}KB)` : "";
+              return `![image${sizeNote}](data:${mediaType};base64,${src.data})`;
+            }
+            return "[Image]";
+          }
+          if (b.type === "input_image" && typeof b.image_url === "string") {
+            const url = b.image_url as string;
+            if (url.startsWith("data:") && url.length > 100) {
+              const sizeNote = b._truncated ? ` (thumbnail, original: ${b._originalSizeKB}KB)` : "";
+              return `![image${sizeNote}](${url})`;
+            }
+            return "[Image]";
+          }
+          if (b.type === "image_url") {
             return "[Image]";
           }
           // Fallback for known text field

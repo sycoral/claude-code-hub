@@ -8,7 +8,7 @@
 interface ContentBlock {
   type: string;
   text?: string;
-  source?: { type?: string; data?: string };
+  source?: { type?: string; media_type?: string; data?: string; _originalSizeKB?: string; _truncated?: string };
   [key: string]: unknown;
 }
 
@@ -79,24 +79,44 @@ export function preprocessAuditContent(
 
   let truncated = false;
 
+  // Max base64 size to keep for thumbnail (~100KB of base64 = ~75KB image)
+  const MAX_IMAGE_BASE64 = 100 * 1024;
+
   function processContentBlocks(blocks: ContentBlock[]): ContentBlock[] {
     for (const block of blocks) {
-      // Strip image base64
+      // Claude format: { type: "image", source: { type: "base64", data: "..." } }
       if (
         block.source?.data &&
         typeof block.source.data === "string" &&
-        block.source.data.length > 200
+        block.source.data.length > MAX_IMAGE_BASE64
       ) {
-        const sizeKB = (Buffer.byteLength(block.source.data, "utf-8") / 1024)
-          .toFixed(1)
-          .replace(/\.0$/, "");
-        block.source.data = `[IMAGE: ${sizeKB} KB]`;
+        // Keep a thumbnail-sized portion of the base64 data
+        const originalSize = block.source.data.length;
+        const sizeKB = (Buffer.byteLength(block.source.data, "utf-8") / 1024).toFixed(0);
+        block.source.data = block.source.data.slice(0, MAX_IMAGE_BASE64);
+        block.source._originalSizeKB = sizeKB;
+        block.source._truncated = "true";
         truncated = true;
+      }
+
+      // Codex format: { type: "input_image", image_url: "data:image/png;base64,..." }
+      if (
+        block.type === "input_image" &&
+        typeof (block as Record<string, unknown>).image_url === "string"
+      ) {
+        const imageUrl = (block as Record<string, unknown>).image_url as string;
+        if (imageUrl.startsWith("data:") && imageUrl.length > MAX_IMAGE_BASE64) {
+          const sizeKB = (Buffer.byteLength(imageUrl, "utf-8") / 1024).toFixed(0);
+          (block as Record<string, unknown>).image_url = imageUrl.slice(0, MAX_IMAGE_BASE64);
+          (block as Record<string, unknown>)._originalSizeKB = sizeKB;
+          (block as Record<string, unknown>)._truncated = "true";
+          truncated = true;
+        }
       }
 
       // Truncate text blocks
       if (
-        block.type === "text" &&
+        (block.type === "text" || block.type === "input_text") &&
         typeof block.text === "string" &&
         block.text.length > maxMessageSize
       ) {
@@ -122,6 +142,24 @@ export function preprocessAuditContent(
 
   if (clonedRequest.messages) {
     processMessages(clonedRequest.messages);
+  }
+
+  // Also process Codex input[] array
+  const clonedInput = (clonedRequest as Record<string, unknown>).input;
+  if (Array.isArray(clonedInput)) {
+    // input items can be messages (with content[]) or direct content blocks (type: "input_image")
+    for (const item of clonedInput) {
+      if (typeof item === "object" && item !== null) {
+        const obj = item as Record<string, unknown>;
+        if (Array.isArray(obj.content)) {
+          processContentBlocks(obj.content as ContentBlock[]);
+        }
+        // Direct content block (e.g., { type: "input_image", image_url: "..." })
+        if (typeof obj.type === "string") {
+          processContentBlocks([obj as unknown as ContentBlock]);
+        }
+      }
+    }
   }
 
   // Also process response content blocks if present
