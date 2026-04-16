@@ -82,33 +82,35 @@ export function AuditChatBubble({ role, content, timestamp, tokens }: AuditChatB
   );
 }
 
-const AUDIT_IMAGE_RE = /\[AUDIT_IMAGE:(data:[^\]]+)\]/g;
+const AUDIT_IMAGE_SPLIT_RE = /(\[AUDIT_IMAGE:data:[^\]]+\])/;
+const AUDIT_IMAGE_EXTRACT_RE = /^\[AUDIT_IMAGE:(data:[^\]]+)\]$/;
 
 function MarkdownContent({ content }: { content: string }) {
   // Split content by image markers and render images as native <img> (bypassing sanitize)
-  if (AUDIT_IMAGE_RE.test(content)) {
-    const parts = content.split(/(\[AUDIT_IMAGE:data:[^\]]+\])/);
-    return (
-      <>
-        {parts.map((part, i) => {
-          const match = /^\[AUDIT_IMAGE:(data:[^\]]+)\]$/.exec(part);
-          if (match) {
-            return (
-              <img
-                key={`img-${i}`}
-                src={match[1]}
-                alt="image"
-                className="my-2 max-h-64 max-w-full rounded-md border object-contain"
-              />
-            );
-          }
-          if (!part.trim()) return null;
-          return <MarkdownText key={`md-${i}`} content={part} />;
-        })}
-      </>
-    );
+  if (!content.includes("[AUDIT_IMAGE:")) {
+    return <MarkdownText content={content} />;
   }
-  return <MarkdownText content={content} />;
+
+  const parts = content.split(AUDIT_IMAGE_SPLIT_RE);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const match = AUDIT_IMAGE_EXTRACT_RE.exec(part);
+        if (match) {
+          return (
+            <img
+              key={`img-${i}`}
+              src={match[1]}
+              alt="image"
+              className="my-2 max-h-64 max-w-full rounded-md border object-contain"
+            />
+          );
+        }
+        if (!part.trim()) return null;
+        return <MarkdownText key={`md-${i}`} content={part} />;
+      })}
+    </>
+  );
 }
 
 function MarkdownText({ content }: { content: string }) {
