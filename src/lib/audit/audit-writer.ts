@@ -9,6 +9,7 @@ import { db } from "@/drizzle/db";
 import { getEnvConfig } from "@/lib/config/env.schema";
 import { logger } from "@/lib/logger";
 import { isSSEText, parseSSEData } from "@/lib/utils/sse";
+import { sql } from "drizzle-orm";
 import { AuditFileStore } from "./audit-file-store";
 import { extractSummary, preprocessAuditContent } from "./audit-preprocessor";
 
@@ -114,30 +115,48 @@ export async function writeAuditRecord(
 
     // 6. Extract summary for DB (from the last user message)
     const summary = extractSummary(session.request.message, 500);
+    const lineSize = Buffer.byteLength(line, "utf-8");
+    const sessionId = session.sessionId ?? `no-session-${session.messageContext!.id}`;
 
-    // 7. Insert DB row
-    await db.insert(auditLog).values({
-      requestId: session.messageContext!.id,
-      userId: session.authState?.user?.id ?? 0,
-      userName: session.authState?.user?.name ?? session.userName,
-      key: session.authState?.apiKey ?? "",
-      sessionId: session.sessionId,
-      requestSeq: session.requestSequence,
-      model: session.request.model,
-      endpoint: session.getEndpoint(),
-      inputTokens: usage?.inputTokens,
-      outputTokens: usage?.outputTokens,
-      costUsd: usage?.costUsd ?? "0",
-      totalMessages: allMessages.length,
-      contentSummary: summary || null,
-      contentPath,
-      contentSize: processed.originalSize,
-      compressed,
-    });
+    // 7. Upsert DB row (one record per session)
+    //    INSERT on first request, UPDATE (accumulate) on subsequent requests.
+    //    Uses ON CONFLICT for atomicity — safe under concurrent writes.
+    await db
+      .insert(auditLog)
+      .values({
+        userId: session.authState?.user?.id ?? 0,
+        userName: session.authState?.user?.name ?? session.userName,
+        key: session.authState?.apiKey ?? "",
+        sessionId,
+        model: session.request.model,
+        endpoint: session.getEndpoint(),
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        costUsd: usage?.costUsd ?? "0",
+        requestCount: 1,
+        totalMessages: allMessages.length,
+        contentSummary: summary || null,
+        contentPath,
+        contentSize: lineSize,
+        compressed,
+      })
+      .onConflictDoUpdate({
+        target: auditLog.sessionId,
+        set: {
+          inputTokens: sql`COALESCE(${auditLog.inputTokens}, 0) + ${usage?.inputTokens ?? 0}`,
+          outputTokens: sql`COALESCE(${auditLog.outputTokens}, 0) + ${usage?.outputTokens ?? 0}`,
+          costUsd: sql`COALESCE(${auditLog.costUsd}, 0) + ${Number(usage?.costUsd ?? 0)}`,
+          requestCount: sql`${auditLog.requestCount} + 1`,
+          totalMessages: allMessages.length,
+          contentSummary: summary || undefined,
+          contentSize: sql`COALESCE(${auditLog.contentSize}, 0) + ${lineSize}`,
+          updatedAt: new Date(),
+        },
+      });
 
     logger.debug(
-      { sessionId: session.sessionId, seq: session.requestSequence, contentPath },
-      "Audit record written"
+      { sessionId, contentPath },
+      "Audit record upserted"
     );
   } catch (err) {
     logger.error({ err, sessionId: session.sessionId }, "Failed to write audit record");

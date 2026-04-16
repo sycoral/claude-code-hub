@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lte, sql } from "drizzle-orm";
 import { auditLog } from "@/drizzle/audit-schema";
 import { db } from "@/drizzle/db";
 import { AuditFileStore } from "@/lib/audit/audit-file-store";
@@ -34,8 +34,13 @@ export type AuditChatMessage = {
   _meta: { size: number; truncated: boolean };
 };
 
+export interface AuditUserItem {
+  userId: number;
+  userName: string;
+}
+
 // ---------------------------------------------------------------------------
-// Helpers
+// Auth helper
 // ---------------------------------------------------------------------------
 
 async function requireAdmin(): Promise<ActionResult<never> | null> {
@@ -47,7 +52,7 @@ async function requireAdmin(): Promise<ActionResult<never> | null> {
 }
 
 // ---------------------------------------------------------------------------
-// 1. getAuditSessions
+// 1. getAuditSessions — simple SELECT, no GROUP BY needed (one row per session)
 // ---------------------------------------------------------------------------
 
 export async function getAuditSessions(params: {
@@ -82,7 +87,6 @@ export async function getAuditSessions(params: {
       conditions.push(gte(auditLog.createdAt, new Date(startDate)));
     }
     if (endDate) {
-      // Set to end of day (23:59:59.999) so records from the endDate are included
       const endOfDay = new Date(endDate);
       endOfDay.setHours(23, 59, 59, 999);
       conditions.push(lte(auditLog.createdAt, endOfDay));
@@ -90,52 +94,36 @@ export async function getAuditSessions(params: {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    // Count total distinct sessions
+    // Count total sessions
     const totalResult = await db
-      .select({ value: sql<number>`count(distinct ${auditLog.sessionId})` })
+      .select({ value: sql<number>`count(*)` })
       .from(auditLog)
       .where(whereClause);
 
     const total = Number(totalResult[0]?.value ?? 0);
 
-    // Fetch grouped sessions with limit+1 trick for hasMore
+    // Fetch paginated rows (one row = one session)
     const offset = (page - 1) * pageSize;
-    const limit = pageSize + 1;
-
     const rows = await db
-      .select({
-        sessionId: auditLog.sessionId,
-        userName: sql<string | null>`min(${auditLog.userName})`,
-        model: sql<string | null>`mode() within group (order by ${auditLog.model})`,
-        firstSummary: sql<
-          string | null
-        >`(array_agg(${auditLog.contentSummary} order by ${auditLog.createdAt} asc))[1]`,
-        requestCount: sql<number>`count(*)::int`,
-        totalInputTokens: sql<number>`coalesce(sum(${auditLog.inputTokens}), 0)::int`,
-        totalOutputTokens: sql<number>`coalesce(sum(${auditLog.outputTokens}), 0)::int`,
-        totalCost: sql<string>`coalesce(sum(${auditLog.costUsd}), 0)::text`,
-        firstAt: sql<string>`min(${auditLog.createdAt})::text`,
-        lastAt: sql<string>`max(${auditLog.createdAt})::text`,
-      })
+      .select()
       .from(auditLog)
       .where(whereClause)
-      .groupBy(auditLog.sessionId)
-      .orderBy(desc(sql`max(${auditLog.createdAt})`))
+      .orderBy(desc(auditLog.updatedAt))
       .offset(offset)
-      .limit(limit);
+      .limit(pageSize + 1);
 
     const hasMore = rows.length > pageSize;
     const sessions: AuditSessionItem[] = rows.slice(0, pageSize).map((r) => ({
       sessionId: r.sessionId,
       userName: r.userName,
       model: r.model,
-      firstSummary: r.firstSummary,
-      requestCount: r.requestCount,
-      totalInputTokens: r.totalInputTokens,
-      totalOutputTokens: r.totalOutputTokens,
-      totalCost: r.totalCost,
-      firstAt: r.firstAt,
-      lastAt: r.lastAt,
+      firstSummary: r.contentSummary,
+      requestCount: r.requestCount ?? 1,
+      totalInputTokens: r.inputTokens ?? 0,
+      totalOutputTokens: r.outputTokens ?? 0,
+      totalCost: r.costUsd ?? "0",
+      firstAt: r.createdAt?.toISOString() ?? "",
+      lastAt: r.updatedAt?.toISOString() ?? "",
     }));
 
     return { ok: true, data: { sessions, total, hasMore } };
@@ -146,7 +134,7 @@ export async function getAuditSessions(params: {
 }
 
 // ---------------------------------------------------------------------------
-// 2. getAuditChat
+// 2. getAuditChat — read JSONL file lines directly (all messages in one file)
 // ---------------------------------------------------------------------------
 
 export async function getAuditChat(params: {
@@ -162,87 +150,35 @@ export async function getAuditChat(params: {
   const { sessionId, page, pageSize } = params;
 
   try {
-    // Count total records for this session
-    const countResult = await db
-      .select({ value: count() })
-      .from(auditLog)
-      .where(eq(auditLog.sessionId, sessionId));
-
-    const totalRecords = Number(countResult[0]?.value ?? 0);
-
-    // Fetch paginated audit_log rows ordered by requestSeq
-    const offset = (page - 1) * pageSize;
-    const limit = pageSize + 1;
-
-    const rows = await db
-      .select({
-        requestSeq: auditLog.requestSeq,
-        contentPath: auditLog.contentPath,
-        createdAt: auditLog.createdAt,
-      })
+    // Get the session record to find the JSONL file path
+    const record = await db
+      .select({ contentPath: auditLog.contentPath, requestCount: auditLog.requestCount })
       .from(auditLog)
       .where(eq(auditLog.sessionId, sessionId))
-      .orderBy(auditLog.requestSeq)
-      .offset(offset)
-      .limit(limit);
+      .limit(1);
 
-    const hasMore = rows.length > pageSize;
-    const pageRows = rows.slice(0, pageSize);
+    if (record.length === 0 || !record[0].contentPath) {
+      return { ok: true, data: { messages: [], hasMore: false, totalRecords: 0 } };
+    }
 
     const config = getEnvConfig();
     const store = new AuditFileStore(config.AUDIT_DATA_DIR, config.AUDIT_MAX_FILE_SIZE);
 
+    // Read all lines from the JSONL file
+    const allLines = await store.readLines(record[0].contentPath, 0, Number.MAX_SAFE_INTEGER);
+    const totalRecords = allLines.length;
+
+    // Paginate on JSONL lines
+    const offset = (page - 1) * pageSize;
+    const pageLines = allLines.slice(offset, offset + pageSize);
+    const hasMore = offset + pageSize < totalRecords;
+
     const messages: AuditChatMessage[] = [];
-
-    for (const row of pageRows) {
-      if (!row.contentPath) {
-        // No file content, build a minimal placeholder
-        messages.push({
-          seq: row.requestSeq ?? 0,
-          ts: row.createdAt?.toISOString() ?? "",
-          request: {},
-          response: null,
-          _meta: { size: 0, truncated: false },
-        });
-        continue;
-      }
-
+    for (const line of pageLines) {
       try {
-        // Read all lines from the file and find the matching seq
-        const lines = await store.readLines(row.contentPath, 0, Number.MAX_SAFE_INTEGER);
-        let found = false;
-
-        for (const line of lines) {
-          try {
-            const parsed = JSON.parse(line) as AuditChatMessage;
-            if (parsed.seq === (row.requestSeq ?? 0)) {
-              messages.push(parsed);
-              found = true;
-              break;
-            }
-          } catch {
-            // skip malformed lines
-          }
-        }
-
-        if (!found) {
-          messages.push({
-            seq: row.requestSeq ?? 0,
-            ts: row.createdAt?.toISOString() ?? "",
-            request: {},
-            response: null,
-            _meta: { size: 0, truncated: false },
-          });
-        }
-      } catch (fileErr) {
-        logger.warn({ err: fileErr, contentPath: row.contentPath }, "Failed to read audit file");
-        messages.push({
-          seq: row.requestSeq ?? 0,
-          ts: row.createdAt?.toISOString() ?? "",
-          request: {},
-          response: null,
-          _meta: { size: 0, truncated: false },
-        });
+        messages.push(JSON.parse(line) as AuditChatMessage);
+      } catch {
+        // skip malformed lines
       }
     }
 
@@ -277,10 +213,9 @@ export async function getAuditModels(): Promise<ActionResult<string[]>> {
   }
 }
 
-export interface AuditUserItem {
-  userId: number;
-  userName: string;
-}
+// ---------------------------------------------------------------------------
+// 4. getAuditUsers
+// ---------------------------------------------------------------------------
 
 export async function getAuditUsers(): Promise<ActionResult<AuditUserItem[]>> {
   const authError = await requireAdmin();
