@@ -32,6 +32,14 @@ function extractTextContent(content: unknown): string {
             if (/^<\/?image\b[^>]*>$/.test(trimmed)) return "";
             return b.text;
           }
+          // Input image (Codex) — use special marker that will be rendered as React component
+          if (b.type === "input_image" && typeof b.image_url === "string") {
+            const url = b.image_url as string;
+            if (url.startsWith("data:") && url.length > 100) {
+              return `\n\n[AUDIT_IMAGE:${url}]\n\n`;
+            }
+            return "[Image]";
+          }
           // Output text (Codex response)
           if (b.type === "output_text" && typeof b.text === "string") return b.text;
           // Thinking (Claude)
@@ -79,19 +87,11 @@ function extractTextContent(content: unknown): string {
             const src = b.source as Record<string, unknown>;
             if (typeof src.data === "string" && src.data.length > 100) {
               const mediaType = (src.media_type as string) || "image/png";
-              const sizeNote = src._truncated ? ` (thumbnail, original: ${src._originalSizeKB}KB)` : "";
-              return `![image${sizeNote}](data:${mediaType};base64,${src.data})`;
+              return `\n\n[AUDIT_IMAGE:data:${mediaType};base64,${src.data}]\n\n`;
             }
             return "[Image]";
           }
-          if (b.type === "input_image" && typeof b.image_url === "string") {
-            const url = b.image_url as string;
-            if (url.startsWith("data:") && url.length > 100) {
-              const sizeNote = b._truncated ? ` (thumbnail, original: ${b._originalSizeKB}KB)` : "";
-              return `![image${sizeNote}](${url})`;
-            }
-            return "[Image]";
-          }
+          // input_image handled above (near input_text), skip duplicate
           if (b.type === "image_url") {
             return "[Image]";
           }

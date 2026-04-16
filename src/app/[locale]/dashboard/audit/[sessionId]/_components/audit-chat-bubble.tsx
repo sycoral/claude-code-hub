@@ -82,7 +82,36 @@ export function AuditChatBubble({ role, content, timestamp, tokens }: AuditChatB
   );
 }
 
+const AUDIT_IMAGE_RE = /\[AUDIT_IMAGE:(data:[^\]]+)\]/g;
+
 function MarkdownContent({ content }: { content: string }) {
+  // Split content by image markers and render images as native <img> (bypassing sanitize)
+  if (AUDIT_IMAGE_RE.test(content)) {
+    const parts = content.split(/(\[AUDIT_IMAGE:data:[^\]]+\])/);
+    return (
+      <>
+        {parts.map((part, i) => {
+          const match = /^\[AUDIT_IMAGE:(data:[^\]]+)\]$/.exec(part);
+          if (match) {
+            return (
+              <img
+                key={`img-${i}`}
+                src={match[1]}
+                alt="image"
+                className="my-2 max-h-64 max-w-full rounded-md border object-contain"
+              />
+            );
+          }
+          if (!part.trim()) return null;
+          return <MarkdownText key={`md-${i}`} content={part} />;
+        })}
+      </>
+    );
+  }
+  return <MarkdownText content={content} />;
+}
+
+function MarkdownText({ content }: { content: string }) {
   return (
     <Markdown
       remarkPlugins={[remarkGfm]}
