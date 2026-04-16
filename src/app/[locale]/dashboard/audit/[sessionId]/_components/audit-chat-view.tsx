@@ -3,7 +3,7 @@
 import { ArrowLeft } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuditChatMessage, AuditSessionItem } from "@/actions/audit";
 import { getAuditChat, getAuditSessions } from "@/actions/audit";
 import { Button } from "@/components/ui/button";
@@ -153,27 +153,36 @@ export function AuditChatViewClient() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = params.sessionId;
 
+  const PAGE_SIZE = 20;
   const [messages, setMessages] = useState<AuditChatMessage[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [_totalRecords, setTotalRecords] = useState(0);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionInfo, setSessionInfo] = useState<AuditSessionItem | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchMessages = useCallback(
     async (pageNum: number) => {
+      // Cancel previous in-flight request
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       setIsLoading(true);
       try {
-        const result = await getAuditChat({ sessionId, page: pageNum, pageSize: 20 });
+        const result = await getAuditChat({ sessionId, page: pageNum, pageSize: PAGE_SIZE });
+        if (controller.signal.aborted) return;
         if (result.ok && result.data) {
-          setMessages((prev) =>
-            pageNum === 1 ? result.data.messages : [...prev, ...result.data.messages]
-          );
+          setMessages(result.data.messages); // Replace, not append
           setHasMore(result.data.hasMore);
           setTotalRecords(result.data.totalRecords);
+          setPage(pageNum);
         }
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     },
     [sessionId]
@@ -181,23 +190,25 @@ export function AuditChatViewClient() {
 
   useEffect(() => {
     fetchMessages(1);
+    return () => abortRef.current?.abort();
   }, [fetchMessages]);
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchSessionInfo() {
       const result = await getAuditSessions({ page: 1, pageSize: 1, search: sessionId });
+      if (cancelled) return;
       if (result.ok && result.data && result.data.sessions.length > 0) {
         setSessionInfo(result.data.sessions[0]);
       }
     }
     fetchSessionInfo();
+    return () => { cancelled = true; };
   }, [sessionId]);
 
-  const handleLoadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchMessages(nextPage);
-  };
+  const totalPages = Math.ceil(totalRecords / PAGE_SIZE);
+  const handlePrevPage = () => fetchMessages(page - 1);
+  const handleNextPage = () => fetchMessages(page + 1);
 
   // Compute session stats
   const duration =
@@ -236,14 +247,6 @@ export function AuditChatViewClient() {
 
       {/* Messages */}
       <div className="space-y-0.5">
-          {hasMore && (
-            <div className="flex justify-center py-2">
-              <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={isLoading}>
-                {t("loadMore")}
-              </Button>
-            </div>
-          )}
-
           {messages.length === 0 && !isLoading && (
             <div className="py-12 text-center text-muted-foreground">{t("noData")}</div>
           )}
@@ -325,6 +328,31 @@ export function AuditChatViewClient() {
 
             return bubbles;
           })}
+
+          {/* Pagination at bottom */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 py-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrevPage}
+                disabled={page <= 1 || isLoading}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={!hasMore || isLoading}
+              >
+                {t("loadMore")}
+              </Button>
+            </div>
+          )}
         </div>
     </div>
   );
