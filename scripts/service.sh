@@ -16,11 +16,15 @@ start() {
   echo "Starting CCH on port $APP_PORT..."
   cd "$APP_DIR"
   nohup bash -c "set -a; source .env; set +a; exec bun run start --port $APP_PORT" > "$LOG_FILE" 2>&1 &
-  echo $! > "$PID_FILE"
-  sleep 2
+  local shell_pid=$!
+  sleep 3
 
-  if kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-    echo "CCH started (PID: $(cat "$PID_FILE"), Port: $APP_PORT)"
+  # Find the actual next-server PID (child of bun)
+  local server_pid=$(pgrep -f "next-server" | head -1)
+  echo "${server_pid:-$shell_pid}" > "$PID_FILE"
+
+  if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
+    echo "CCH started (PID: $server_pid, Port: $APP_PORT)"
   else
     echo "CCH failed to start. Check $LOG_FILE"
     rm -f "$PID_FILE"
@@ -31,8 +35,8 @@ start() {
 stop() {
   if [ ! -f "$PID_FILE" ]; then
     echo "CCH is not running (no PID file)"
-    # Try to find and kill by process name
-    local pid=$(pgrep -f "bun run start.*$APP_PORT")
+    # Try to find and kill by process name (bun or next-server)
+    local pid=$(pgrep -f "bun run start.*$APP_PORT" || pgrep -f "next-server")
     if [ -n "$pid" ]; then
       echo "Found orphan process $pid, killing..."
       kill "$pid" 2>/dev/null
