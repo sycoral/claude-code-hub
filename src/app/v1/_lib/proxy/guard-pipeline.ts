@@ -4,7 +4,7 @@ import type { EndpointPolicy } from "./endpoint-policy";
 import { ProxyMessageService } from "./message-service";
 import { ProxyModelGuard } from "./model-guard";
 import { ProxyProviderRequestFilter } from "./provider-request-filter";
-import { ProxyProviderResolver } from "./provider-selector";
+import { ProxyQueuedProviderResolver } from "./queue-handler";
 import { ProxyRateLimitGuard } from "./rate-limit-guard";
 import { ProxyRequestFilter } from "./request-filter";
 import { ProxySensitiveWordGuard } from "./sensitive-word-guard";
@@ -123,7 +123,7 @@ const Steps: Record<GuardStepKey, GuardStep> = {
   provider: {
     name: "provider",
     async execute(session) {
-      return ProxyProviderResolver.ensure(session);
+      return ProxyQueuedProviderResolver.ensure(session);
     },
   },
   providerRequestFilter: {

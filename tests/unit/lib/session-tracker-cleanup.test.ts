@@ -105,15 +105,15 @@ describe("SessionTracker - TTL and cleanup", () => {
       );
     });
 
-    it("should default to 300 seconds (5 min) when SESSION_TTL not set", async () => {
+    it("should default to 600 seconds (10 min) when SESSION_TTL not set", async () => {
       delete process.env.SESSION_TTL;
 
       const { SessionTracker } = await import("@/lib/session-tracker");
 
       await SessionTracker.getGlobalSessionCount();
 
-      // Default: 300 seconds = 300000 ms
-      const expectedCutoff = nowMs - 300 * 1000;
+      // Default: 600 seconds = 600000 ms
+      const expectedCutoff = nowMs - 600 * 1000;
       expect(redisClientRef.zremrangebyscore).toHaveBeenCalledWith(
         globalKey,
         "-inf",

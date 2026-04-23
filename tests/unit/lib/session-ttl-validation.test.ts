@@ -5,7 +5,7 @@ import { getGlobalActiveSessionsKey } from "@/lib/redis/active-session-keys";
  * Tests for SESSION_TTL environment variable validation
  *
  * These tests verify that invalid SESSION_TTL values (NaN, 0, negative)
- * are properly handled with fallback to default 300 seconds.
+ * are properly handled with fallback to default 600 seconds.
  */
 
 let redisClientRef: any;
@@ -91,14 +91,14 @@ describe("SESSION_TTL environment variable validation", () => {
   });
 
   describe("SessionTracker TTL parsing", () => {
-    it("should use default 300 when SESSION_TTL is empty string", async () => {
+    it("should use default 600 when SESSION_TTL is empty string", async () => {
       process.env.SESSION_TTL = "";
       const { SessionTracker } = await import("@/lib/session-tracker");
 
       await SessionTracker.getGlobalSessionCount();
 
-      // Default: 300 seconds = 300000 ms
-      const expectedCutoff = nowMs - 300 * 1000;
+      // Default: 600 seconds = 600000 ms
+      const expectedCutoff = nowMs - 600 * 1000;
       expect(redisClientRef.zremrangebyscore).toHaveBeenCalledWith(
         getGlobalActiveSessionsKey(),
         "-inf",
@@ -106,13 +106,13 @@ describe("SESSION_TTL environment variable validation", () => {
       );
     });
 
-    it("should use default 300 when SESSION_TTL is NaN", async () => {
+    it("should use default 600 when SESSION_TTL is NaN", async () => {
       process.env.SESSION_TTL = "not-a-number";
       const { SessionTracker } = await import("@/lib/session-tracker");
 
       await SessionTracker.getGlobalSessionCount();
 
-      const expectedCutoff = nowMs - 300 * 1000;
+      const expectedCutoff = nowMs - 600 * 1000;
       expect(redisClientRef.zremrangebyscore).toHaveBeenCalledWith(
         getGlobalActiveSessionsKey(),
         "-inf",
@@ -120,13 +120,13 @@ describe("SESSION_TTL environment variable validation", () => {
       );
     });
 
-    it("should use default 300 when SESSION_TTL is 0", async () => {
+    it("should use default 600 when SESSION_TTL is 0", async () => {
       process.env.SESSION_TTL = "0";
       const { SessionTracker } = await import("@/lib/session-tracker");
 
       await SessionTracker.getGlobalSessionCount();
 
-      const expectedCutoff = nowMs - 300 * 1000;
+      const expectedCutoff = nowMs - 600 * 1000;
       expect(redisClientRef.zremrangebyscore).toHaveBeenCalledWith(
         getGlobalActiveSessionsKey(),
         "-inf",
@@ -134,13 +134,13 @@ describe("SESSION_TTL environment variable validation", () => {
       );
     });
 
-    it("should use default 300 when SESSION_TTL is negative", async () => {
+    it("should use default 600 when SESSION_TTL is negative", async () => {
       process.env.SESSION_TTL = "-100";
       const { SessionTracker } = await import("@/lib/session-tracker");
 
       await SessionTracker.getGlobalSessionCount();
 
-      const expectedCutoff = nowMs - 300 * 1000;
+      const expectedCutoff = nowMs - 600 * 1000;
       expect(redisClientRef.zremrangebyscore).toHaveBeenCalledWith(
         getGlobalActiveSessionsKey(),
         "-inf",
@@ -149,13 +149,13 @@ describe("SESSION_TTL environment variable validation", () => {
     });
 
     it("should use provided value when SESSION_TTL is valid positive integer", async () => {
-      process.env.SESSION_TTL = "600";
+      process.env.SESSION_TTL = "1200";
       const { SessionTracker } = await import("@/lib/session-tracker");
 
       await SessionTracker.getGlobalSessionCount();
 
-      // Custom: 600 seconds = 600000 ms
-      const expectedCutoff = nowMs - 600 * 1000;
+      // Custom: 1200 seconds = 1200000 ms
+      const expectedCutoff = nowMs - 1200 * 1000;
       expect(redisClientRef.zremrangebyscore).toHaveBeenCalledWith(
         getGlobalActiveSessionsKey(),
         "-inf",

@@ -99,7 +99,7 @@ type SessionResponseMeta = {
  * 4. 存储和查询活跃 session 详细信息（用于实时监控）
  */
 export class SessionManager {
-  private static readonly SESSION_TTL = parseInt(process.env.SESSION_TTL || "300", 10); // 5 分钟
+  private static readonly SESSION_TTL = parseInt(process.env.SESSION_TTL || "600", 10); // 10 分钟（空闲让出）
   private static readonly SHORT_CONTEXT_THRESHOLD = parseInt(
     process.env.SHORT_CONTEXT_THRESHOLD || "2",
     10

@@ -36,7 +36,7 @@ function getSessionTtlSeconds(): number {
   const raw = process.env.SESSION_TTL;
   const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return 300;
+    return 600;
   }
   return parsed;
 }

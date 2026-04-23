@@ -631,6 +631,13 @@
       "when": 1776240372733,
       "tag": "0089_supreme_skreet",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1776929595551,
+      "tag": "0091_user_affinity_slots",
+      "breakpoints": true
     }
   ]
 }

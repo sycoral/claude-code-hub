@@ -5,6 +5,64 @@
  */
 
 /**
+ * Atomic provider user-slot check + tracking
+ *
+ * 用途：限制同一 provider 被多少个不同 user 绑定活跃（user affinity 槽位）。
+ * 与 CHECK_AND_TRACK_SESSION 同构，但 member 是 userId 而不是 sessionId，
+ * 且承载的是"活跃用户数"而不是"并发 session 数"。
+ *
+ * 逻辑：
+ *  1. 清理过期记录（score < now - ttl）
+ *  2. 查 userId 是否已 tracked（用户在此 provider 已有活跃 slot）
+ *  3. 未 tracked 且 count >= limit → 拒绝
+ *  4. 否则 ZADD 刷新 score 并 EXPIRE
+ *
+ * KEYS[1]: provider:${providerId}:active_users
+ * ARGV[1]: userId
+ * ARGV[2]: limit (0 = 不限制)
+ * ARGV[3]: now (ms)
+ * ARGV[4]: ttlMs (cleanup window, default 600000 = 10min)
+ *
+ * 返回 [allowed, count, tracked]：
+ *  - {1, count, 1}：允许，首次占用 slot（新用户）
+ *  - {1, count, 0}：允许，已占用（幂等刷新 score）
+ *  - {0, count, 0}：拒绝（slot 满）
+ */
+export const CHECK_AND_ACQUIRE_PROVIDER_USER_SLOT = `
+local provider_key = KEYS[1]
+local user_id = ARGV[1]
+local limit = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local ttl = tonumber(ARGV[4]) or 600000
+
+if ttl <= 0 then
+  ttl = 600000
+end
+
+local cutoff = now - ttl
+redis.call('ZREMRANGEBYSCORE', provider_key, '-inf', cutoff)
+
+local is_tracked = redis.call('ZSCORE', provider_key, user_id)
+local current_count = redis.call('ZCARD', provider_key)
+
+if limit > 0 and not is_tracked and current_count >= limit then
+  return {0, current_count, 0}
+end
+
+redis.call('ZADD', provider_key, now, user_id)
+
+local ttl_seconds = math.floor(ttl / 1000)
+local expire_ttl = math.max(3600, ttl_seconds)
+redis.call('EXPIRE', provider_key, expire_ttl)
+
+if is_tracked then
+  return {1, current_count, 0}
+else
+  return {1, current_count + 1, 1}
+end
+`;
+
+/**
  * Atomic concurrency check + session tracking (TC-041 fixed version)
  *
  * Features:

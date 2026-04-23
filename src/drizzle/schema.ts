@@ -251,6 +251,9 @@ export const providers = pgTable('providers', {
   limitTotalUsd: numeric('limit_total_usd', { precision: 10, scale: 2 }),
   totalCostResetAt: timestamp('total_cost_reset_at', { withTimezone: true }),
   limitConcurrentSessions: integer('limit_concurrent_sessions').default(0),
+  // 单账号活跃用户数上限（跨分组合计；0 = 不限制）
+  // 用于控制同一账号最多被多少个不同用户绑定（user affinity 槽位）
+  limitConcurrentUsers: integer('limit_concurrent_users').default(0),
 
   // 熔断器配置（每个供应商独立配置）
   // null = 使用全局默认值 (env.MAX_RETRY_ATTEMPTS_DEFAULT 或 2)

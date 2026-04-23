@@ -73,6 +73,7 @@ import {
   getUserActiveSessionsKey,
 } from "@/lib/redis/active-session-keys";
 import {
+  CHECK_AND_ACQUIRE_PROVIDER_USER_SLOT,
   CHECK_AND_TRACK_KEY_USER_SESSION,
   CHECK_AND_TRACK_SESSION,
   GET_COST_5H_ROLLING_WINDOW,
@@ -80,6 +81,7 @@ import {
   TRACK_COST_5H_ROLLING_WINDOW,
   TRACK_COST_DAILY_ROLLING_WINDOW,
 } from "@/lib/redis/lua-scripts";
+import { getProviderActiveUsersKey } from "@/lib/redis/user-affinity-keys";
 import { SessionTracker } from "@/lib/session-tracker";
 import { ERROR_CODES } from "@/lib/utils/error-messages";
 import {
@@ -100,7 +102,7 @@ import {
 
 const SESSION_TTL_SECONDS = (() => {
   const parsed = Number.parseInt(process.env.SESSION_TTL ?? "", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
 })();
 const SESSION_TTL_MS = SESSION_TTL_SECONDS * 1000;
 
@@ -743,6 +745,92 @@ export class RateLimitService {
     } catch (error) {
       logger.error("[RateLimit] Atomic check-and-track failed:", error);
       return { allowed: true, count: 0, tracked: false }; // Fail Open
+    }
+  }
+
+  /**
+   * 原子性检查 + 占用 provider 的 user-slot（活跃用户槽位）。
+   *
+   * 用途：限制同一 provider 被多少个不同用户同时绑定（跨分组合计）。
+   * 当 limit=0 时视为"不限制"，直接返回 allowed。
+   *
+   * 配合 user affinity 使用：
+   *  - 用户首次进入该 provider → tracked=1，计数+1
+   *  - 用户已在该 provider 有活跃 slot → tracked=0，仅刷新 score（幂等）
+   *  - 新用户进入但 slot 已满 → allowed=false，调用方应加入排除列表重试
+   *
+   * Fail Open 策略：Redis 不可用时直接放行（与 checkAndTrackProviderSession 一致）。
+   */
+  static async checkAndAcquireProviderUserSlot(
+    providerId: number,
+    userId: number,
+    limit: number
+  ): Promise<{ allowed: boolean; count: number; tracked: boolean; reason?: string }> {
+    if (limit <= 0) {
+      return { allowed: true, count: 0, tracked: false };
+    }
+
+    if (!RateLimitService.redis || RateLimitService.redis.status !== "ready") {
+      logger.warn("[RateLimit] Redis not ready for user slot check, Fail Open");
+      return { allowed: true, count: 0, tracked: false };
+    }
+
+    try {
+      const key = getProviderActiveUsersKey(providerId);
+      const now = Date.now();
+
+      const result = (await RateLimitService.redis.eval(
+        CHECK_AND_ACQUIRE_PROVIDER_USER_SLOT,
+        1,
+        key,
+        userId.toString(),
+        limit.toString(),
+        now.toString(),
+        SESSION_TTL_MS.toString()
+      )) as [number, number, number];
+
+      const [allowed, count, tracked] = result;
+
+      if (allowed === 0) {
+        return {
+          allowed: false,
+          count,
+          tracked: false,
+          reason: `供应商活跃用户上限已达到（${count}/${limit}）`,
+        };
+      }
+
+      return {
+        allowed: true,
+        count,
+        tracked: tracked === 1,
+      };
+    } catch (error) {
+      logger.error("[RateLimit] User slot acquire failed:", error);
+      return { allowed: true, count: 0, tracked: false };
+    }
+  }
+
+  /**
+   * 刷新 provider user-slot 的活跃时间戳（不做容量检查）。
+   *
+   * 用途：一条 session 在请求期间持续活跃时，顺带把 user_slot 的 score 滑动到当前时间，
+   * 防止空闲超时被懒清理误伤。调用方应确认用户已成功占用 slot 后再调用。
+   */
+  static async refreshProviderUserSlot(providerId: number, userId: number): Promise<void> {
+    if (!RateLimitService.redis || RateLimitService.redis.status !== "ready") {
+      return;
+    }
+
+    try {
+      const key = getProviderActiveUsersKey(providerId);
+      const now = Date.now();
+      const pipeline = RateLimitService.redis.pipeline();
+      pipeline.zadd(key, now, userId.toString());
+      pipeline.expire(key, Math.max(3600, SESSION_TTL_SECONDS));
+      await pipeline.exec();
+    } catch (error) {
+      logger.error("[RateLimit] refreshProviderUserSlot failed:", error);
     }
   }
 

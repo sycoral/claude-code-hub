@@ -24,7 +24,7 @@ import { getRedisClient } from "./redis";
 export class SessionTracker {
   private static readonly SESSION_TTL_SECONDS = (() => {
     const parsed = Number.parseInt(process.env.SESSION_TTL ?? "", 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 600;
   })();
   private static readonly SESSION_TTL_MS = SessionTracker.SESSION_TTL_SECONDS * 1000;
   private static readonly CLEANUP_PROBABILITY = 0.01;
@@ -200,6 +200,12 @@ export class SessionTracker {
       pipeline.expire(providerZSetKey, Math.max(3600, ttlSeconds));
       if (userId !== undefined) {
         pipeline.zadd(getUserActiveSessionsKey(userId), now, sessionId);
+        // 顺带刷新 provider 的 active_users ZSET（user affinity 槽位），
+        // 防止活跃用户在 ttl 内被懒清理后释放 slot 给他人。
+        // Key: provider:{providerId}:active_users, member = userId
+        const providerUsersKey = `provider:${providerId}:active_users`;
+        pipeline.zadd(providerUsersKey, now, userId.toString());
+        pipeline.expire(providerUsersKey, Math.max(3600, ttlSeconds));
       }
 
       pipeline.expire(`session:${sessionId}:provider`, ttlSeconds);

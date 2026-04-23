@@ -135,5 +135,5 @@ Critical variables (see `.env.example` for full list):
 - `DSN`: PostgreSQL connection string
 - `REDIS_URL`: Redis connection URL
 - `ENABLE_RATE_LIMIT`: Toggle rate limiting
-- `SESSION_TTL`: Session cache TTL (default 300s)
+- `SESSION_TTL`: Session cache TTL, sliding window (default 600s = 10 min; idle sessions yield their provider slot automatically)
 - `AUTO_MIGRATE`: Auto-run migrations on startup

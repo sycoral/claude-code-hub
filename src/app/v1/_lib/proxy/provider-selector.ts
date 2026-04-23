@@ -3,6 +3,7 @@ import { getCircuitState, isCircuitOpen } from "@/lib/circuit-breaker";
 import { PROVIDER_GROUP } from "@/lib/constants/provider.constants";
 import { logger } from "@/lib/logger";
 import { RateLimitService } from "@/lib/rate-limit";
+import { getUserAffinity, setUserAffinity } from "@/lib/redis/user-affinity";
 import { SessionManager } from "@/lib/session-manager";
 import { parseProviderGroups } from "@/lib/utils/provider-group";
 import { isProviderActiveNow } from "@/lib/utils/provider-schedule";
@@ -55,7 +56,7 @@ async function getVerboseProviderErrorCached(): Promise<boolean> {
  * @param session - 代理会话对象
  * @returns 有效分组字符串，或 null（无认证信息时）
  */
-function getEffectiveProviderGroup(session?: ProxySession): string | null {
+export function getEffectiveProviderGroup(session?: ProxySession): string | null {
   if (!session?.authState) {
     return null;
   }
@@ -168,6 +169,10 @@ export class ProxyProviderResolver {
     // 动态尝试所有可用供应商（避免无限循环通过 excludedProviders 和 null 返回）
     const excludedProviders: number[] = [];
 
+    // User affinity 上下文：在循环中稳定使用，避免每次 Redis 回查
+    const affinityUserId = session.authState?.user?.id;
+    const affinityGroup = getEffectiveProviderGroup(session);
+
     // === 会话复用 ===
     const reusedProvider = await ProxyProviderResolver.findReusable(session);
     if (reusedProvider) {
@@ -224,6 +229,45 @@ export class ProxyProviderResolver {
 
       // 选定供应商后，进行原子性并发检查并追踪
       if (session.sessionId) {
+        // === User-slot 检查（先于 session-slot）===
+        // 控制"同一账号上活跃不同用户数"的上限。limit=0 时 Fail Open。
+        // 与 session-slot 同样复用 excludedProviders 做重试，失败路径清晰一致。
+        const userSlotLimit = session.provider.limitConcurrentUsers || 0;
+        if (userSlotLimit > 0 && affinityUserId) {
+          const userCheck = await RateLimitService.checkAndAcquireProviderUserSlot(
+            session.provider.id,
+            affinityUserId,
+            userSlotLimit
+          );
+          if (!userCheck.allowed) {
+            logger.warn("ProviderSelector: Provider active-user slot exceeded, trying fallback", {
+              providerName: session.provider.name,
+              providerId: session.provider.id,
+              current: userCheck.count,
+              limit: userSlotLimit,
+              userId: affinityUserId,
+              attempt: attemptCount,
+            });
+
+            excludedProviders.push(session.provider.id);
+
+            const { provider: fallbackProvider, context: retryContext } =
+              await ProxyProviderResolver.pickRandomProvider(session, excludedProviders);
+
+            if (!fallbackProvider) {
+              logger.error(
+                "ProviderSelector: No fallback providers available after user-slot exhaustion",
+                { excludedCount: excludedProviders.length, totalAttempts: attemptCount }
+              );
+              break;
+            }
+
+            session.setProvider(fallbackProvider);
+            session.setLastSelectionContext(retryContext);
+            continue;
+          }
+        }
+
         const limit = session.provider.limitConcurrentSessions || 0;
 
         // 使用原子性检查并追踪（解决竞态条件）
@@ -343,6 +387,16 @@ export class ProxyProviderResolver {
         // 原因：此时请求还没发送，供应商可能失败
         // 修复：延迟到 forwarder 请求成功后统一更新（见 forwarder.ts:75-80）
         // void SessionManager.updateSessionProvider(...); // ❌ 已移除
+
+        // === 写入 user affinity（fire-and-forget） ===
+        // 时机：slot 原子占用成功 = provider 通过了基础/健康/并发的多重校验。
+        // 即使本次请求最终失败，下次 affinity 命中时会再走一次熔断/健康检查把坏 provider 过滤掉，
+        // 因此可以安全地在此处写入。覆盖写 + 7d 滑动 TTL。
+        if (affinityUserId && affinityGroup) {
+          void setUserAffinity(affinityUserId, affinityGroup, session.provider.id).catch((err) => {
+            logger.warn("ProviderSelector: setUserAffinity failed (ignored)", { error: err });
+          });
+        }
 
         return null; // 成功
       }
@@ -859,6 +913,46 @@ export class ProxyProviderResolver {
     });
 
     context.enabledProviders = enabledProviders.length;
+
+    // === User Affinity 快速路径 ===
+    // 若当前用户在该分组下已有绑定的 provider，且该 provider 仍健康、未被排除，
+    // 直接返回它，跳过后续的 priority/weight 随机选择。这一步只是"偏好"，
+    // 不做任何占位检查；真正的 user-slot / session-slot 原子占用由上游 ensure() 负责。
+    // 命中失败（过期 / 不健康 / 被排除）时静默回落到原流程，不清除 affinity 绑定。
+    const userIdForAffinity = session?.authState?.user?.id;
+    if (
+      userIdForAffinity &&
+      effectiveGroupPick &&
+      enabledProviders.length > 0 &&
+      excludeIds.length === 0 // 重试场景下跳过亲和，避免反复选回同一失败 provider
+    ) {
+      try {
+        const affinityProviderId = await getUserAffinity(userIdForAffinity, effectiveGroupPick);
+        if (affinityProviderId) {
+          const affinityProvider = enabledProviders.find((p) => p.id === affinityProviderId);
+          if (affinityProvider && !(await isCircuitOpen(affinityProvider.id))) {
+            logger.debug("ProviderSelector: affinity fast-path hit", {
+              userId: userIdForAffinity,
+              group: effectiveGroupPick,
+              providerId: affinityProvider.id,
+              providerName: affinityProvider.name,
+            });
+            context.selectedPriority = affinityProvider.priority || 0;
+            context.candidatesAtPriority = [
+              {
+                id: affinityProvider.id,
+                name: affinityProvider.name,
+                weight: affinityProvider.weight,
+                costMultiplier: Number(affinityProvider.costMultiplier ?? 1),
+              },
+            ];
+            return { provider: affinityProvider, context };
+          }
+        }
+      } catch (err) {
+        logger.warn("ProviderSelector: affinity lookup failed, falling back", { error: err });
+      }
+    }
 
     // 记录被过滤的供应商（遍历 visibleProviders）
     for (const p of visibleProviders) {

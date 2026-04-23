@@ -86,7 +86,7 @@ describe("SessionManager - Redaction based on STORE_SESSION_MESSAGES", () => {
       expect(redisMock.setex).toHaveBeenCalledTimes(1);
       const [key, ttl, value] = redisMock.setex.mock.calls[0];
       expect(key).toBe("session:sess_123:req:1:messages");
-      expect(ttl).toBe(300);
+      expect(ttl).toBe(600);
 
       const stored = JSON.parse(value);
       expect(stored[0].content).toBe("[REDACTED]");

@@ -320,6 +320,7 @@ export async function getProviders(): Promise<ProviderDisplay[]> {
         limitMonthlyUsd: provider.limitMonthlyUsd,
         limitTotalUsd: provider.limitTotalUsd,
         limitConcurrentSessions: provider.limitConcurrentSessions,
+        limitConcurrentUsers: provider.limitConcurrentUsers ?? 0,
         maxRetryAttempts: provider.maxRetryAttempts,
         circuitBreakerFailureThreshold: provider.circuitBreakerFailureThreshold,
         circuitBreakerOpenDuration: provider.circuitBreakerOpenDuration,

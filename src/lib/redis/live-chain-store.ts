@@ -9,7 +9,7 @@ export interface LiveChainSnapshot {
   updatedAt: number;
 }
 
-const SESSION_TTL = Number.parseInt(process.env.SESSION_TTL || "300", 10);
+const SESSION_TTL = Number.parseInt(process.env.SESSION_TTL || "600", 10);
 
 const store = new RedisKVStore<LiveChainSnapshot>({
   prefix: "cch:live-chain:",

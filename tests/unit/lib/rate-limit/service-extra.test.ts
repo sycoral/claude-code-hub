@@ -185,9 +185,9 @@ describe("RateLimitService - other quota paths", () => {
     // Indices:   0        1        2    3          4      5     6
     expect(evalCall.length).toBe(7); // script + 1 key + 5 ARGV
 
-    // ARGV[4] (index 6) should be SESSION_TTL_MS derived from env (default 300s = 300000ms)
+    // ARGV[4] (index 6) should be SESSION_TTL_MS derived from env (default 600s = 600000ms)
     const ttlMsArg = evalCall[6];
-    expect(ttlMsArg).toBe("300000");
+    expect(ttlMsArg).toBe("600000");
   });
 
   it("checkAndTrackKeyUserSession：keyLimit/userLimit 均 <=0 时应放行且不追踪", async () => {
@@ -268,7 +268,7 @@ describe("RateLimitService - other quota paths", () => {
     expect(evalCall.length).toBe(10);
 
     const ttlMsArg = evalCall[9];
-    expect(ttlMsArg).toBe("300000");
+    expect(ttlMsArg).toBe("600000");
   });
 
   it("trackUserDailyCost：fixed 模式应使用 STRING + TTL", async () => {
