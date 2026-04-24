@@ -2168,7 +2168,8 @@
       "last7days": "7天",
       "last30days": "30天",
       "apply": "套用",
-      "reset": "重設"
+      "reset": "重設",
+      "viewUserInputs": "檢視全部真實輸入"
     },
     "columns": {
       "time": "時間",
@@ -2193,7 +2194,20 @@
       "userMessage": "使用者",
       "assistantMessage": "助手",
       "tokens": "tokens",
-      "onlyRealInput": "僅顯示真實輸入"
+      "onlyRealInput": "僅顯示真實輸入",
+      "viewUserInputs": "該使用者全部輸入"
+    },
+    "userView": {
+      "title": "使用者真實輸入",
+      "description": "按時間倒序顯示該使用者在所有 session 中的真實文字輸入（已過濾工具回顯）。點選條目可跳到對應上下文。",
+      "back": "返回會話列表",
+      "search": "搜尋文字…",
+      "apply": "套用",
+      "reset": "重設",
+      "prev": "上一頁",
+      "next": "下一頁",
+      "noData": "該使用者最近的 session 中暫無真實輸入。",
+      "scanHint": "掃描最近 100 個 session，找到 {count} 條真實輸入。"
     }
   }
 }

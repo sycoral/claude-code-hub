@@ -2183,7 +2183,8 @@
       "last7days": "7天",
       "last30days": "30天",
       "apply": "应用",
-      "reset": "重置"
+      "reset": "重置",
+      "viewUserInputs": "查看全部真实输入"
     },
     "columns": {
       "time": "时间",
@@ -2208,7 +2209,20 @@
       "userMessage": "用户",
       "assistantMessage": "助手",
       "tokens": "tokens",
-      "onlyRealInput": "仅显示真实输入"
+      "onlyRealInput": "仅显示真实输入",
+      "viewUserInputs": "该用户全部输入"
+    },
+    "userView": {
+      "title": "用户真实输入",
+      "description": "按时间倒序显示该用户在所有 session 中的真实文字输入（已过滤工具回显）。点击条目可跳转到对应上下文。",
+      "back": "返回会话列表",
+      "search": "搜索文字…",
+      "apply": "应用",
+      "reset": "重置",
+      "prev": "上一页",
+      "next": "下一页",
+      "noData": "该用户最近的 session 中暂无真实输入。",
+      "scanHint": "扫描最近 100 个 session，找到 {count} 条真实输入。"
     }
   }
 }

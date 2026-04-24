@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
-import { useParams } from "next/navigation";
+import { ArrowLeft, ListChecks } from "lucide-react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuditChatMessage, AuditSessionItem } from "@/actions/audit";
@@ -160,6 +160,17 @@ function extractResponseText(response: unknown, opts: ExtractOpts = {}): string 
 
 const ONLY_REAL_INPUT_KEY = "audit.only-real-input";
 
+// Parse deep-link anchor param "seq:idx" from URL search. Returns null on bad
+// input so ?at= is gracefully ignored instead of crashing.
+function parseAtParam(raw: string | null): { seq: number; idx: number } | null {
+  if (!raw) return null;
+  const [seqStr, idxStr] = raw.split(":");
+  const seq = Number(seqStr);
+  const idx = Number(idxStr);
+  if (!Number.isFinite(seq) || !Number.isFinite(idx)) return null;
+  return { seq, idx };
+}
+
 function formatDuration(ms: number): string {
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
   if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m`;
@@ -174,6 +185,11 @@ export function AuditChatViewClient() {
   const t = useTranslations("dashboard.conversationAudit.chat");
   const params = useParams<{ sessionId: string }>();
   const sessionId = params.sessionId;
+  const searchParams = useSearchParams();
+
+  // Deep-link: `?at=<seq>:<idx>` — remember the target, scroll after render.
+  const atParam = searchParams.get("at");
+  const target = parseAtParam(atParam);
 
   const PAGE_SIZE = 20;
   const [messages, setMessages] = useState<AuditChatMessage[]>([]);
@@ -183,6 +199,8 @@ export function AuditChatViewClient() {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionInfo, setSessionInfo] = useState<AuditSessionItem | null>(null);
   const [onlyRealInput, setOnlyRealInput] = useState(false);
+  const [highlightSeqIdx, setHighlightSeqIdx] = useState<string | null>(null);
+  const hasScrolledRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
   // Restore toggle from localStorage on mount
@@ -199,7 +217,7 @@ export function AuditChatViewClient() {
   }, []);
 
   const fetchMessages = useCallback(
-    async (pageNum: number) => {
+    async (pageNum: number, opts?: { targetSeq?: number }) => {
       // Cancel previous in-flight request
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -207,13 +225,18 @@ export function AuditChatViewClient() {
 
       setIsLoading(true);
       try {
-        const result = await getAuditChat({ sessionId, page: pageNum, pageSize: PAGE_SIZE });
+        const result = await getAuditChat({
+          sessionId,
+          page: pageNum,
+          pageSize: PAGE_SIZE,
+          targetSeq: opts?.targetSeq,
+        });
         if (controller.signal.aborted) return;
         if (result.ok && result.data) {
           setMessages(result.data.messages); // Replace, not append
           setHasMore(result.data.hasMore);
           setTotalRecords(result.data.totalRecords);
-          setPage(pageNum);
+          setPage(result.data.page);
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -225,9 +248,24 @@ export function AuditChatViewClient() {
   );
 
   useEffect(() => {
-    fetchMessages(1);
+    // Initial load: jump straight to the page containing the target seq
+    // if we got one via ?at=. Otherwise page 1.
+    fetchMessages(1, target ? { targetSeq: target.seq } : undefined);
     return () => abortRef.current?.abort();
-  }, [fetchMessages]);
+  }, [fetchMessages, target?.seq]);
+
+  // Scroll & highlight the deep-link target bubble once it's rendered.
+  useEffect(() => {
+    if (!target || hasScrolledRef.current || isLoading || messages.length === 0) return;
+    const id = `msg-${target.seq}-${target.idx}`;
+    const el = document.getElementById(id);
+    if (!el) return;
+    hasScrolledRef.current = true;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightSeqIdx(`${target.seq}:${target.idx}`);
+    const timer = window.setTimeout(() => setHighlightSeqIdx(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [target, isLoading, messages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -266,10 +304,18 @@ export function AuditChatViewClient() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-bold">{t("title")}</h1>
             <p className="font-mono text-xs text-muted-foreground">{sessionId}</p>
           </div>
+          {sessionInfo?.userId && (
+            <Link href={`/dashboard/audit/user/${sessionInfo.userId}`}>
+              <Button variant="secondary" size="sm" className="gap-1">
+                <ListChecks className="h-3.5 w-3.5" />
+                {t("viewUserInputs")}
+              </Button>
+            </Link>
+          )}
         </div>
         {sessionInfo && (
           <AuditSessionStats
@@ -358,12 +404,15 @@ export function AuditChatViewClient() {
             if (role === "user" || role === "assistant") {
               const content = extractTextContent(m.content, extractOpts);
               if (content.trim()) {
+                const bubbleId = `msg-${msg.seq}-${idx}`;
                 bubbles.push(
                   <AuditChatBubble
                     key={`${msg.seq}-${role}-${idx}`}
                     role={role as "user" | "assistant"}
                     content={content}
                     timestamp={msg.ts}
+                    domId={bubbleId}
+                    highlighted={highlightSeqIdx === `${msg.seq}:${idx}`}
                   />
                 );
               }

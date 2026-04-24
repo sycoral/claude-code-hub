@@ -2160,7 +2160,8 @@
       "last7days": "7日間",
       "last30days": "30日間",
       "apply": "適用",
-      "reset": "リセット"
+      "reset": "リセット",
+      "viewUserInputs": "ユーザーの全入力を表示"
     },
     "columns": {
       "time": "時間",
@@ -2185,7 +2186,20 @@
       "userMessage": "ユーザー",
       "assistantMessage": "アシスタント",
       "tokens": "トークン",
-      "onlyRealInput": "実ユーザー入力のみ"
+      "onlyRealInput": "実ユーザー入力のみ",
+      "viewUserInputs": "このユーザーの全入力"
+    },
+    "userView": {
+      "title": "ユーザーの実入力",
+      "description": "このユーザーの全セッションにわたる人間記述のテキスト入力（ツール出力は除去）。エントリをクリックすると該当コンテキストへジャンプします。",
+      "back": "セッション一覧に戻る",
+      "search": "テキストを検索…",
+      "apply": "適用",
+      "reset": "リセット",
+      "prev": "前へ",
+      "next": "次へ",
+      "noData": "直近のセッションに実入力は見つかりません。",
+      "scanHint": "直近 100 セッションをスキャンし、{count} 件の実入力を検出。"
     }
   }
 }

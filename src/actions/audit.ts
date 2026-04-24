@@ -15,6 +15,7 @@ import type { ActionResult } from "./types";
 
 export type AuditSessionItem = {
   sessionId: string | null;
+  userId: number;
   userName: string | null;
   model: string | null;
   firstSummary: string | null;
@@ -24,6 +25,18 @@ export type AuditSessionItem = {
   totalCost: string;
   firstAt: string;
   lastAt: string;
+};
+
+// One real user input, scoped across ALL of a user's sessions.
+// Used by the user-centric "real inputs" view for deep-linking back into
+// the session chat at the exact seq/index.
+export type AuditUserRealInput = {
+  sessionId: string;
+  seq: number;
+  idx: number; // index within msgList of the seq
+  ts: string;
+  model: string | null;
+  content: string; // already extracted, tool blocks stripped
 };
 
 export type AuditChatMessage = {
@@ -115,6 +128,7 @@ export async function getAuditSessions(params: {
     const hasMore = rows.length > pageSize;
     const sessions: AuditSessionItem[] = rows.slice(0, pageSize).map((r) => ({
       sessionId: r.sessionId,
+      userId: r.userId,
       userName: r.userName,
       model: r.model,
       firstSummary: r.contentSummary,
@@ -141,13 +155,23 @@ export async function getAuditChat(params: {
   sessionId: string;
   page: number;
   pageSize: number;
+  // Optional: when a deep link asks for a specific seq, server finds the
+  // page containing it and returns that page instead. Client then scrolls
+  // to the matching bubble.
+  targetSeq?: number;
 }): Promise<
-  ActionResult<{ messages: AuditChatMessage[]; hasMore: boolean; totalRecords: number }>
+  ActionResult<{
+    messages: AuditChatMessage[];
+    hasMore: boolean;
+    totalRecords: number;
+    page: number;
+  }>
 > {
   const authError = await requireAdmin();
   if (authError) return authError;
 
-  const { sessionId, page, pageSize } = params;
+  const { sessionId, pageSize, targetSeq } = params;
+  let page = params.page;
 
   try {
     // Get the session record to find the JSONL file path
@@ -161,7 +185,7 @@ export async function getAuditChat(params: {
       .limit(1);
 
     if (record.length === 0 || !record[0].contentPath) {
-      return { ok: true, data: { messages: [], hasMore: false, totalRecords: 0 } };
+      return { ok: true, data: { messages: [], hasMore: false, totalRecords: 0, page: 1 } };
     }
 
     const config = getEnvConfig();
@@ -170,6 +194,23 @@ export async function getAuditChat(params: {
     // Read all lines from the JSONL file
     const allLines = await store.readLines(record[0].contentPath, 0, Number.MAX_SAFE_INTEGER);
     const totalRecords = allLines.length;
+
+    // Deep-link: if targetSeq is set, find the line whose JSON has matching
+    // seq and compute its 1-based page number. Falls back to requested page
+    // if not found.
+    if (targetSeq !== undefined) {
+      for (let i = 0; i < allLines.length; i++) {
+        try {
+          const parsed = JSON.parse(allLines[i]) as { seq?: number };
+          if (parsed.seq === targetSeq) {
+            page = Math.floor(i / pageSize) + 1;
+            break;
+          }
+        } catch {
+          // skip malformed
+        }
+      }
+    }
 
     // Paginate on JSONL lines
     const offset = (page - 1) * pageSize;
@@ -185,11 +226,151 @@ export async function getAuditChat(params: {
       }
     }
 
-    return { ok: true, data: { messages, hasMore, totalRecords } };
+    return { ok: true, data: { messages, hasMore, totalRecords, page } };
   } catch (err) {
     logger.error({ err }, "Failed to fetch audit chat");
     return { ok: false, error: "Failed to fetch audit chat" };
   }
+}
+
+// ---------------------------------------------------------------------------
+// 2b. getAuditUserRealInputs — flat list of a user's real text inputs across
+// all their sessions, reverse-chronological. Tool_result / tool_use / images
+// are stripped, leaving only the human-authored text so an admin can skim
+// what the user actually asked for over time.
+// ---------------------------------------------------------------------------
+
+const MAX_SCAN_SESSIONS = 100;
+
+export async function getAuditUserRealInputs(params: {
+  userId: number;
+  page: number;
+  pageSize: number;
+  search?: string;
+}): Promise<
+  ActionResult<{
+    items: AuditUserRealInput[];
+    hasMore: boolean;
+    totalScanned: number;
+  }>
+> {
+  const authError = await requireAdmin();
+  if (authError) return authError;
+
+  const { userId, page, pageSize, search } = params;
+
+  try {
+    // Pick the most recent N sessions belonging to the user. If a user has
+    // more, we show a truncation hint client-side.
+    const sessions = await db
+      .select({
+        sessionId: conversationAuditLog.sessionId,
+        contentPath: conversationAuditLog.contentPath,
+        model: conversationAuditLog.model,
+      })
+      .from(conversationAuditLog)
+      .where(eq(conversationAuditLog.userId, userId))
+      .orderBy(desc(conversationAuditLog.updatedAt))
+      .limit(MAX_SCAN_SESSIONS);
+
+    if (sessions.length === 0) {
+      return { ok: true, data: { items: [], hasMore: false, totalScanned: 0 } };
+    }
+
+    const config = getEnvConfig();
+    const store = new AuditFileStore(config.AUDIT_DATA_DIR, config.AUDIT_MAX_FILE_SIZE);
+
+    const all: AuditUserRealInput[] = [];
+    const searchLower = search?.trim().toLowerCase();
+
+    for (const s of sessions) {
+      if (!s.contentPath || !s.sessionId) continue;
+      let lines: string[];
+      try {
+        lines = await store.readLines(s.contentPath, 0, Number.MAX_SAFE_INTEGER);
+      } catch {
+        continue; // missing/corrupt file — skip
+      }
+
+      for (const line of lines) {
+        let parsed: AuditChatMessage;
+        try {
+          parsed = JSON.parse(line) as AuditChatMessage;
+        } catch {
+          continue;
+        }
+
+        // Support both Claude (request.messages[]) and Codex (request.input[])
+        const rawMessages = Array.isArray(parsed.request?.messages)
+          ? (parsed.request.messages as Array<Record<string, unknown>>)
+          : [];
+        const rawInput = Array.isArray(parsed.request?.input)
+          ? (parsed.request.input as Array<Record<string, unknown>>)
+          : [];
+        const msgList = rawMessages.length > 0 ? rawMessages : rawInput;
+
+        for (let idx = 0; idx < msgList.length; idx++) {
+          const m = msgList[idx];
+          const role = m.role as string | undefined;
+          if (role !== "user") continue;
+          const text = extractRealUserText(m.content);
+          if (!text) continue;
+          if (searchLower && !text.toLowerCase().includes(searchLower)) continue;
+          all.push({
+            sessionId: s.sessionId,
+            seq: parsed.seq,
+            idx,
+            ts: parsed.ts,
+            model: s.model,
+            content: text,
+          });
+        }
+      }
+    }
+
+    // Reverse-chronological by ts
+    all.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+
+    const offset = (page - 1) * pageSize;
+    const items = all.slice(offset, offset + pageSize);
+    const hasMore = offset + pageSize < all.length;
+
+    return {
+      ok: true,
+      data: { items, hasMore, totalScanned: all.length },
+    };
+  } catch (err) {
+    logger.error({ err }, "Failed to fetch user real inputs");
+    return { ok: false, error: "Failed to fetch user real inputs" };
+  }
+}
+
+// Extracts just the human-authored text from a user message's content,
+// ignoring tool_result / function_call_output / image blocks and the
+// <image> wrapper tags Codex uses.
+function extractRealUserText(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  const parts: string[] = [];
+  for (const block of content) {
+    if (typeof block === "string") {
+      const t = block.trim();
+      if (t) parts.push(t);
+      continue;
+    }
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+    const type = typeof b.type === "string" ? b.type : undefined;
+    if (type === "text" || type === "input_text") {
+      if (typeof b.text === "string") {
+        const t = b.text.trim();
+        if (/^<\/?image\b[^>]*>$/.test(t)) continue; // Codex image wrapper
+        if (t) parts.push(t);
+      }
+    }
+    // Skip everything else (tool_result, tool_use, image, function_*...)
+  }
+  return parts.join("\n\n").trim();
 }
 
 // ---------------------------------------------------------------------------

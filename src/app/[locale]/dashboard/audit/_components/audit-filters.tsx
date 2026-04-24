@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, Search } from "lucide-react";
+import { Check, ChevronsUpDown, ListChecks, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useState } from "react";
 import { getAuditModels, getAuditUsers } from "@/actions/audit";
@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Link } from "@/i18n/routing";
 import { cn } from "@/lib/utils";
 
 export interface AuditFilterValues {
@@ -234,6 +235,16 @@ export function AuditFilters({ onFilterChange }: AuditFiltersProps) {
       <Button onClick={handleReset} variant="outline" size="sm">
         {t("reset")}
       </Button>
+
+      {/* Cross-session view — only visible when a single user is selected */}
+      {filters.userId && (
+        <Link href={`/dashboard/audit/user/${filters.userId}`}>
+          <Button variant="secondary" size="sm" className="gap-1">
+            <ListChecks className="h-3.5 w-3.5" />
+            {t("viewUserInputs")}
+          </Button>
+        </Link>
+      )}
     </div>
   );
 }

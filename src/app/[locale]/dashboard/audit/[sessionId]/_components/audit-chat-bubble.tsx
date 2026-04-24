@@ -28,16 +28,33 @@ type AuditChatBubbleProps = {
   content: string;
   timestamp?: string;
   tokens?: number;
+  // Optional deep-link anchor: when set, adds `id={domId}` so the container
+  // can scrollIntoView this bubble. When `highlighted` is also true, applies
+  // a transient ring so the target stands out.
+  domId?: string;
+  highlighted?: boolean;
 };
 
-export function AuditChatBubble({ role, content, timestamp, tokens }: AuditChatBubbleProps) {
+export function AuditChatBubble({
+  role,
+  content,
+  timestamp,
+  tokens,
+  domId,
+  highlighted,
+}: AuditChatBubbleProps) {
   const t = useTranslations("dashboard.conversationAudit.chat");
   const [expanded, setExpanded] = useState(false);
 
   if (role === "system") {
     return (
-      <div className="py-1">
-        <div className="rounded-md border border-dashed bg-muted/30 px-3 py-1.5">
+      <div id={domId} className="py-1">
+        <div
+          className={cn(
+            "rounded-md border border-dashed bg-muted/30 px-3 py-1.5",
+            highlighted && "ring-2 ring-primary"
+          )}
+        >
           <button
             type="button"
             className="w-full text-left text-xs font-medium text-muted-foreground"
@@ -58,11 +75,12 @@ export function AuditChatBubble({ role, content, timestamp, tokens }: AuditChatB
   const isUser = role === "user";
 
   return (
-    <div className={cn("flex py-1", isUser ? "justify-start" : "justify-end")}>
+    <div id={domId} className={cn("flex py-1", isUser ? "justify-start" : "justify-end")}>
       <div
         className={cn(
-          "max-w-[90%] rounded-lg px-3 py-2",
-          isUser ? "rounded-bl-sm bg-blue-50 dark:bg-blue-950/40" : "rounded-br-sm bg-muted"
+          "max-w-[90%] rounded-lg px-3 py-2 transition",
+          isUser ? "rounded-bl-sm bg-blue-50 dark:bg-blue-950/40" : "rounded-br-sm bg-muted",
+          highlighted && "ring-2 ring-primary"
         )}
       >
         <div className="flex items-center gap-2">

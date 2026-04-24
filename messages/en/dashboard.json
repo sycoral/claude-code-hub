@@ -2231,7 +2231,8 @@
       "last7days": "7 Days",
       "last30days": "30 Days",
       "apply": "Apply",
-      "reset": "Reset"
+      "reset": "Reset",
+      "viewUserInputs": "View user's inputs"
     },
     "columns": {
       "time": "Time",
@@ -2256,7 +2257,20 @@
       "userMessage": "User",
       "assistantMessage": "Assistant",
       "tokens": "tokens",
-      "onlyRealInput": "Real input only"
+      "onlyRealInput": "Real input only",
+      "viewUserInputs": "User's all inputs"
+    },
+    "userView": {
+      "title": "User's real inputs",
+      "description": "Human-authored text messages across all of this user's sessions. Tool outputs are stripped. Click an entry to jump to its context.",
+      "back": "Back to sessions",
+      "search": "Search text…",
+      "apply": "Apply",
+      "reset": "Reset",
+      "prev": "Previous",
+      "next": "Next",
+      "noData": "No real user inputs found in this user's recent sessions.",
+      "scanHint": "Showing real inputs from up to 100 most recent sessions. Found {count} entries."
     }
   }
 }
