@@ -253,7 +253,7 @@
         "responseModelLabel": "实际响应模型",
         "mismatchTooltip": "上游供应商实际返回的模型与请求的模型不一致。计费仍然基于请求模型。",
         "secondaryLineAriaLabel": "实际响应模型：{model}",
-        "arrowPrefix": "\u21b3"
+        "arrowPrefix": "↳"
       },
       "errorMessage": "错误信息",
       "fake200ForwardedNotice": "提示：对于流式请求，该失败可能在流结束后才被识别；响应内容可能已原样透传给客户端。",
@@ -787,7 +787,8 @@
     "systemSettings": "系统设置",
     "feedback": "反馈问题",
     "login": "登录",
-    "logout": "退出登录"
+    "logout": "退出登录",
+    "conversationAudit": "对话审计"
   },
   "statistics": {
     "title": "使用统计",
@@ -2167,5 +2168,46 @@
     },
     "alreadySet": "已配置",
     "confirmAdd": "添加"
+  },
+  "conversationAudit": {
+    "title": "审计日志",
+    "description": "查看团队 AI 使用记录和对话内容",
+    "filters": {
+      "user": "用户",
+      "model": "模型",
+      "timeRange": "时间范围",
+      "search": "搜索摘要...",
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "today": "今天",
+      "last7days": "7天",
+      "last30days": "30天",
+      "apply": "应用",
+      "reset": "重置"
+    },
+    "columns": {
+      "time": "时间",
+      "user": "用户",
+      "model": "模型",
+      "requests": "请求数",
+      "tokens": "Tokens",
+      "cost": "费用",
+      "summary": "摘要"
+    },
+    "chat": {
+      "title": "会话审计",
+      "back": "返回审计列表",
+      "systemPrompt": "系统提示词",
+      "loadMore": "加载更多",
+      "sessionInfo": "会话信息",
+      "totalRounds": "总轮次",
+      "totalTokens": "总 Tokens",
+      "totalCost": "总费用",
+      "duration": "时长",
+      "noData": "该会话无审计数据",
+      "userMessage": "用户",
+      "assistantMessage": "助手",
+      "tokens": "tokens"
+    }
   }
 }

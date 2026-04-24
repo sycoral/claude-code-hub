@@ -253,7 +253,7 @@
         "responseModelLabel": "Actual Response Model",
         "mismatchTooltip": "The upstream provider returned a different model than the one requested. Billing is still based on the requested model.",
         "secondaryLineAriaLabel": "Actual response model: {model}",
-        "arrowPrefix": "\u21b3"
+        "arrowPrefix": "↳"
       },
       "errorMessage": "Error Message",
       "fake200ForwardedNotice": "Note: For streaming requests, this failure may be detected only after the stream ends; the response content may already have been forwarded to the client.",
@@ -787,7 +787,8 @@
     "systemSettings": "Settings",
     "feedback": "Feedback",
     "login": "Login",
-    "logout": "Logout"
+    "logout": "Logout",
+    "conversationAudit": "Conversation Audit"
   },
   "statistics": {
     "title": "Usage Statistics",
@@ -2215,5 +2216,46 @@
     },
     "alreadySet": "Configured",
     "confirmAdd": "Add"
+  },
+  "conversationAudit": {
+    "title": "Audit Logs",
+    "description": "Review team AI usage and conversation content",
+    "filters": {
+      "user": "User",
+      "model": "Model",
+      "timeRange": "Time Range",
+      "search": "Search summary...",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "today": "Today",
+      "last7days": "7 Days",
+      "last30days": "30 Days",
+      "apply": "Apply",
+      "reset": "Reset"
+    },
+    "columns": {
+      "time": "Time",
+      "user": "User",
+      "model": "Model",
+      "requests": "Requests",
+      "tokens": "Tokens",
+      "cost": "Cost",
+      "summary": "Summary"
+    },
+    "chat": {
+      "title": "Session Audit",
+      "back": "Back to Audit List",
+      "systemPrompt": "System Prompt",
+      "loadMore": "Load More",
+      "sessionInfo": "Session Info",
+      "totalRounds": "Total Rounds",
+      "totalTokens": "Total Tokens",
+      "totalCost": "Total Cost",
+      "duration": "Duration",
+      "noData": "No audit data for this session",
+      "userMessage": "User",
+      "assistantMessage": "Assistant",
+      "tokens": "tokens"
+    }
   }
 }

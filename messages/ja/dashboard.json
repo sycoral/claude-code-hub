@@ -253,7 +253,7 @@
         "responseModelLabel": "実際の応答モデル",
         "mismatchTooltip": "上流プロバイダが返したモデルがリクエストされたモデルと異なります。課金は引き続きリクエストモデルを基準とします。",
         "secondaryLineAriaLabel": "実際の応答モデル: {model}",
-        "arrowPrefix": "\u21b3"
+        "arrowPrefix": "↳"
       },
       "errorMessage": "エラーメッセージ",
       "fake200ForwardedNotice": "注意：ストリーミング要求では、失敗判定がストリーム終了後になる場合があります。応答内容は既にクライアントへ転送されている可能性があります。",
@@ -785,7 +785,8 @@
     "systemSettings": "設定",
     "feedback": "フィードバック",
     "login": "ログイン",
-    "logout": "ログアウト"
+    "logout": "ログアウト",
+    "conversationAudit": "会話監査"
   },
   "statistics": {
     "title": "使用統計",
@@ -2144,5 +2145,46 @@
     },
     "alreadySet": "設定済み",
     "confirmAdd": "追加"
+  },
+  "conversationAudit": {
+    "title": "監査ログ",
+    "description": "チームのAI使用状況と会話内容を確認",
+    "filters": {
+      "user": "ユーザー",
+      "model": "モデル",
+      "timeRange": "期間",
+      "search": "要約を検索...",
+      "startDate": "開始日",
+      "endDate": "終了日",
+      "today": "今日",
+      "last7days": "7日間",
+      "last30days": "30日間",
+      "apply": "適用",
+      "reset": "リセット"
+    },
+    "columns": {
+      "time": "時間",
+      "user": "ユーザー",
+      "model": "モデル",
+      "requests": "リクエスト数",
+      "tokens": "トークン",
+      "cost": "コスト",
+      "summary": "要約"
+    },
+    "chat": {
+      "title": "セッション監査",
+      "back": "監査一覧に戻る",
+      "systemPrompt": "システムプロンプト",
+      "loadMore": "さらに読み込む",
+      "sessionInfo": "セッション情報",
+      "totalRounds": "総ラウンド数",
+      "totalTokens": "総トークン数",
+      "totalCost": "総コスト",
+      "duration": "所要時間",
+      "noData": "このセッションの監査データはありません",
+      "userMessage": "ユーザー",
+      "assistantMessage": "アシスタント",
+      "tokens": "トークン"
+    }
   }
 }

@@ -10,7 +10,7 @@ for (const envFile of envFiles) {
 
 export default defineConfig({
   out: "./drizzle",
-  schema: "./src/drizzle/schema.ts",
+  schema: ["./src/drizzle/schema.ts", "./src/drizzle/audit-schema.ts"],
   dialect: "postgresql",
   dbCredentials: {
     url: process.env.DSN!,

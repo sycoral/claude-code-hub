@@ -253,7 +253,7 @@
         "responseModelLabel": "實際回應模型",
         "mismatchTooltip": "上游供應商實際回傳的模型與請求的模型不一致。計費仍然依據請求模型。",
         "secondaryLineAriaLabel": "實際回應模型：{model}",
-        "arrowPrefix": "\u21b3"
+        "arrowPrefix": "↳"
       },
       "errorMessage": "錯誤訊息",
       "fake200ForwardedNotice": "提示：對於串流請求，此失敗可能在串流結束後才被識別；回應內容可能已原樣透傳給用戶端。",
@@ -785,7 +785,8 @@
     "systemSettings": "系統設定",
     "feedback": "意見回饋",
     "login": "登入",
-    "logout": "登出"
+    "logout": "登出",
+    "conversationAudit": "對話審計"
   },
   "statistics": {
     "title": "使用統計",
@@ -2152,5 +2153,46 @@
     },
     "alreadySet": "已設定",
     "confirmAdd": "新增"
+  },
+  "conversationAudit": {
+    "title": "稽核日誌",
+    "description": "檢視團隊 AI 使用紀錄和對話內容",
+    "filters": {
+      "user": "使用者",
+      "model": "模型",
+      "timeRange": "時間範圍",
+      "search": "搜尋摘要...",
+      "startDate": "開始日期",
+      "endDate": "結束日期",
+      "today": "今天",
+      "last7days": "7天",
+      "last30days": "30天",
+      "apply": "套用",
+      "reset": "重設"
+    },
+    "columns": {
+      "time": "時間",
+      "user": "使用者",
+      "model": "模型",
+      "requests": "請求數",
+      "tokens": "Tokens",
+      "cost": "費用",
+      "summary": "摘要"
+    },
+    "chat": {
+      "title": "會話稽核",
+      "back": "返回稽核列表",
+      "systemPrompt": "系統提示詞",
+      "loadMore": "載入更多",
+      "sessionInfo": "會話資訊",
+      "totalRounds": "總輪次",
+      "totalTokens": "總 Tokens",
+      "totalCost": "總費用",
+      "duration": "時長",
+      "noData": "該會話無稽核資料",
+      "userMessage": "使用者",
+      "assistantMessage": "助手",
+      "tokens": "tokens"
+    }
   }
 }
