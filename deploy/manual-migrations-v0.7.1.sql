@@ -1,44 +1,40 @@
 -- =================================================================
--- Manual migration bundle: local v0.6.0 + local conversation-audit → v0.7.1 + conversation-audit
+-- Manual migration bundle v2 — FULLY IDEMPOTENT
 -- 
--- Target environment:
---   * Production DB state BEFORE running this bundle:
---     - Upstream migrations applied up to 0087_nappy_lady_mastermind
---     - Local conversation-audit migrations applied manually:
---         0088_absent_felicia_hardy (CREATE audit_log session schema)
---         0089_supreme_skreet       (ADD COLUMN total_messages)
---         0090_audit_session_model  (DROP request_*, ADD request_count, ADD updated_at,
---                                    CREATE UNIQUE INDEX on session_id)
---     - drizzle.__drizzle_migrations rows exist for 0088/0089 (possibly 0090 too)
---       with hashes of the OLD local SQL files
+-- Safe to re-run from ANY starting state:
+--   * Fresh DB (never migrated)
+--   * Pre-v0.7.1 local deployment (legacy session-schema audit_log)
+--   * Partially app-migrated (AUTO_MIGRATE=true already applied some/all)
+--   * Fully migrated (no-op)
 -- 
--- This bundle does:
---   1. PRE-STEP — rename the legacy audit_log (session schema) → conversation_audit_log
---   2. Runs upstream v0.7.1 migrations 0088..0098 (11 files) in order
---   3. Runs new migration 0099_conversation_audit_log (idempotent, no-op after pre-step)
---   4. Removes the orphaned __drizzle_migrations rows for old local 0088/0089/0090 hashes
---   5. Inserts new __drizzle_migrations rows for 0088..0099 with the CURRENT hashes
+-- Mechanism:
+--   * PRE-STEP rename guarded by column-presence check
+--   * Each migration gated by its hash in drizzle.__drizzle_migrations via
+--     psql's \if directive — the whole block is skipped if already applied
+--   * Orphan cleanup uses DELETE WHERE hash IN (...) which is a no-op if absent
+--   * INSERTs happen inside the \if block, so only new migrations register
 -- 
--- AUTO_MIGRATE is off on prod, so this is executed manually by the operator.
+-- Requirements:
+--   * Must be run via psql (uses \if / \gset / \echo client directives)
+--   * Podman: podman exec -i <container> psql -U postgres -d claude_code_hub \
+--              -v ON_ERROR_STOP=1 --single-transaction < this-file.sql
+--   * --single-transaction handles COMMIT automatically (no manual COMMIT needed)
 -- 
--- HEAVY-OPERATION WARNINGS:
---   * Migration 0088 creates an index on `message_request` (high-write table).
---     Inside BEGIN..COMMIT it takes AccessExclusiveLock → blocks writes.
---     If that is unacceptable, run this OUT-OF-BAND first, outside a transaction:
---       CREATE INDEX CONCURRENTLY IF NOT EXISTS
---         "idx_message_request_provider_created_at_finalized_active"
---         ON "message_request" (provider_id, created_at DESC NULLS LAST)
---         WHERE deleted_at IS NULL AND status_code IS NOT NULL;
---     Then run this bundle (IF NOT EXISTS will skip the in-transaction CREATE).
---   * Migration 0101 ADD COLUMN on message_request + usage_ledger — Postgres 11+
---     treats nullable ADD COLUMN as metadata-only, so no rewrite.
---   * Migration 0096 ADD COLUMN DEFAULT NOT NULL on keys/providers/users — also
---     metadata-only under Postgres 11+ (constant defaults are not rewritten).
+-- HEAVY-OPERATION WARNING:
+--   Migration 0088 creates an index on message_request (high-write table).
+--   If the bundle gates it in, it runs INSIDE the transaction and takes
+--   AccessExclusiveLock. Prefer creating the index OUT-OF-BAND first with
+--   CONCURRENTLY, then running this bundle (IF NOT EXISTS will skip the
+--   in-transaction CREATE):
+--     CREATE INDEX CONCURRENTLY IF NOT EXISTS
+--       "idx_message_request_provider_created_at_finalized_active"
+--       ON "message_request" (provider_id, created_at DESC NULLS LAST)
+--       WHERE deleted_at IS NULL AND status_code IS NOT NULL;
 -- =================================================================
 
-BEGIN;
+\set ON_ERROR_STOP on
 
--- Ensure drizzle tracking table exists (idempotent).
+-- Ensure drizzle tracking infrastructure exists (before any \gset reads).
 CREATE SCHEMA IF NOT EXISTS "drizzle";
 CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
   id SERIAL PRIMARY KEY,
@@ -46,9 +42,11 @@ CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
   created_at numeric
 );
 
--- PRE-STEP: rename legacy local audit_log → conversation_audit_log
--- This MUST run before upstream migration 0089 to free the audit_log name so
--- upstream's admin-ops audit_log table can be created cleanly.
+-- =================================================================
+-- PRE-STEP: rename legacy audit_log (session schema) → conversation_audit_log
+-- Runs before upstream 0089's CREATE TABLE audit_log, freeing the name.
+-- Idempotent via column-presence guards.
+-- =================================================================
 DO $$
 BEGIN
   IF EXISTS (
@@ -71,31 +69,48 @@ BEGIN
     ALTER INDEX IF EXISTS "idx_audit_log_created_at_id" RENAME TO "idx_conversation_audit_log_created_at_id";
     ALTER INDEX IF EXISTS "idx_audit_log_model" RENAME TO "idx_conversation_audit_log_model";
 
-    RAISE NOTICE 'Renamed legacy audit_log → conversation_audit_log';
+    RAISE NOTICE 'PRE-STEP: renamed legacy audit_log → conversation_audit_log';
   ELSE
-    RAISE NOTICE 'No legacy audit_log to rename (already done, or never existed, or upstream audit_log already present)';
+    RAISE NOTICE 'PRE-STEP: no legacy audit_log to rename (fresh/migrated/already renamed)';
   END IF;
 END
 $$;
 
+-- =================================================================
+-- Cleanup orphan drizzle rows from the pre-rewrite local audit migrations
+-- (their SQL files no longer exist on this branch). Idempotent.
+-- =================================================================
+DELETE FROM "drizzle"."__drizzle_migrations" WHERE hash IN (
+  '05d674fbbcb4d7c51d4a1a90f15d88607b306b40fc95e24a527db449324a545d',  -- 0088_absent_felicia_hardy (legacy local)
+  '3f85f8f543a7e1ebef7bcaa8daa7c9564e22b66a281a6ab066b42692febba3df',  -- 0089_supreme_skreet (legacy local)
+  '7594de911706f9890f3c9a4cb5a21df4fef91a8324bc74a5e4e4f8cf4871aa6b'   -- 0090_audit_session_model (legacy local)
+);
 
 -- ----------------------------------------------------------------
--- Migration: 0088_amazing_energizer
--- File: drizzle/0088_amazing_energizer.sql
+-- Migration 1/12: 0088_amazing_energizer
 -- Hash: 8c216238324d86b4d908947e5a542f43bce989ad99cd288b6014ddb684b6a39d
 -- created_at (ms): 1776095902010
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '8c216238324d86b4d908947e5a542f43bce989ad99cd288b6014ddb684b6a39d') AS run_0088_amazing_energizer \gset
+\if :run_0088_amazing_energizer
+\echo Running 0088_amazing_energizer
 -- Note: message_request is a high-write table. Standard CREATE INDEX may block writes during index creation.
 -- Drizzle migrator does not support CREATE INDEX CONCURRENTLY. If write blocking is a concern,
 -- manually pre-create this index with CONCURRENTLY before running this migration (IF NOT EXISTS prevents conflicts).
 CREATE INDEX IF NOT EXISTS "idx_message_request_provider_created_at_finalized_active" ON "message_request" USING btree ("provider_id","created_at" DESC NULLS LAST) WHERE "message_request"."deleted_at" IS NULL AND "message_request"."status_code" IS NOT NULL;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('8c216238324d86b4d908947e5a542f43bce989ad99cd288b6014ddb684b6a39d', 1776095902010);
+\else
+\echo Skipping 0088_amazing_energizer (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0089_curly_grey_gargoyle
--- File: drizzle/0089_curly_grey_gargoyle.sql
+-- Migration 2/12: 0089_curly_grey_gargoyle
 -- Hash: 6ebc47c8396bb69ca8de489b0d1d69f9b20bdf49a3cb0348d93f81b9daf221a5
 -- created_at (ms): 1776409181358
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '6ebc47c8396bb69ca8de489b0d1d69f9b20bdf49a3cb0348d93f81b9daf221a5') AS run_0089_curly_grey_gargoyle \gset
+\if :run_0089_curly_grey_gargoyle
+\echo Running 0089_curly_grey_gargoyle
 CREATE TABLE IF NOT EXISTS "audit_log" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"action_category" varchar(32) NOT NULL,
@@ -223,57 +238,93 @@ EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('6ebc47c8396bb69ca8de489b0d1d69f9b20bdf49a3cb0348d93f81b9daf221a5', 1776409181358);
+\else
+\echo Skipping 0089_curly_grey_gargoyle (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0090_demonic_captain_universe
--- File: drizzle/0090_demonic_captain_universe.sql
+-- Migration 3/12: 0090_demonic_captain_universe
 -- Hash: 8bc51f2aa51d63a5718392e76539f7674506fad6d1c1ed51ca82139b4b5875a2
 -- created_at (ms): 1776421578713
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '8bc51f2aa51d63a5718392e76539f7674506fad6d1c1ed51ca82139b4b5875a2') AS run_0090_demonic_captain_universe \gset
+\if :run_0090_demonic_captain_universe
+\echo Running 0090_demonic_captain_universe
 ALTER TABLE "provider_groups" ALTER COLUMN "created_at" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "provider_groups" ALTER COLUMN "updated_at" SET NOT NULL;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('8bc51f2aa51d63a5718392e76539f7674506fad6d1c1ed51ca82139b4b5875a2', 1776421578713);
+\else
+\echo Skipping 0090_demonic_captain_universe (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0091_daily_carnage
--- File: drizzle/0091_daily_carnage.sql
+-- Migration 4/12: 0091_daily_carnage
 -- Hash: 42d31e9e5d5ee7653b3bd28eb67b1cab754b2699e9d4f5cb822208767f5acdcb
 -- created_at (ms): 1776767493777
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '42d31e9e5d5ee7653b3bd28eb67b1cab754b2699e9d4f5cb822208767f5acdcb') AS run_0091_daily_carnage \gset
+\if :run_0091_daily_carnage
+\echo Running 0091_daily_carnage
 ALTER TABLE "system_settings" ADD COLUMN "public_status_window_hours" integer DEFAULT 24 NOT NULL;--> statement-breakpoint
 ALTER TABLE "system_settings" ADD COLUMN "public_status_aggregation_interval_minutes" integer DEFAULT 5 NOT NULL;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('42d31e9e5d5ee7653b3bd28eb67b1cab754b2699e9d4f5cb822208767f5acdcb', 1776767493777);
+\else
+\echo Skipping 0091_daily_carnage (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0092_smart_stone_men
--- File: drizzle/0092_smart_stone_men.sql
+-- Migration 5/12: 0092_smart_stone_men
 -- Hash: 1b6bbb106dac0345216a48c38727608eeff7d135016584cdcd02eee33d0f9b81
 -- created_at (ms): 1776800253243
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '1b6bbb106dac0345216a48c38727608eeff7d135016584cdcd02eee33d0f9b81') AS run_0092_smart_stone_men \gset
+\if :run_0092_smart_stone_men
+\echo Running 0092_smart_stone_men
 ALTER TABLE "keys" ADD COLUMN "limit_5h_reset_mode" "daily_reset_mode" DEFAULT 'rolling' NOT NULL;--> statement-breakpoint
 ALTER TABLE "providers" ADD COLUMN "limit_5h_reset_mode" "daily_reset_mode" DEFAULT 'rolling' NOT NULL;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "limit_5h_reset_mode" "daily_reset_mode" DEFAULT 'rolling' NOT NULL;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('1b6bbb106dac0345216a48c38727608eeff7d135016584cdcd02eee33d0f9b81', 1776800253243);
+\else
+\echo Skipping 0092_smart_stone_men (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0093_tricky_shockwave
--- File: drizzle/0093_tricky_shockwave.sql
+-- Migration 6/12: 0093_tricky_shockwave
 -- Hash: 66e19ed0a2686f0779da64145157e83d2c7bd1f2cc5fe0958459c55109c98024
 -- created_at (ms): 1776823153912
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '66e19ed0a2686f0779da64145157e83d2c7bd1f2cc5fe0958459c55109c98024') AS run_0093_tricky_shockwave \gset
+\if :run_0093_tricky_shockwave
+\echo Running 0093_tricky_shockwave
 ALTER TABLE "provider_groups" ALTER COLUMN "description" SET DATA TYPE text;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('66e19ed0a2686f0779da64145157e83d2c7bd1f2cc5fe0958459c55109c98024', 1776823153912);
+\else
+\echo Skipping 0093_tricky_shockwave (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0094_third_spacker_dave
--- File: drizzle/0094_third_spacker_dave.sql
+-- Migration 7/12: 0094_third_spacker_dave
 -- Hash: 367bf8b6af5332886251230f37dde0de3926daae8a90d609b0066d5087753ce5
 -- created_at (ms): 1776831143074
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '367bf8b6af5332886251230f37dde0de3926daae8a90d609b0066d5087753ce5') AS run_0094_third_spacker_dave \gset
+\if :run_0094_third_spacker_dave
+\echo Running 0094_third_spacker_dave
 ALTER TABLE "users" ADD COLUMN "limit_5h_cost_reset_at" timestamp with time zone;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('367bf8b6af5332886251230f37dde0de3926daae8a90d609b0066d5087753ce5', 1776831143074);
+\else
+\echo Skipping 0094_third_spacker_dave (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0095_young_lily_hollister
--- File: drizzle/0095_young_lily_hollister.sql
+-- Migration 8/12: 0095_young_lily_hollister
 -- Hash: 8be4e71ceebbe38013ebea0069c2e6f3d1207a15e405ceb2efb532c7111c077e
 -- created_at (ms): 1776916341782
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '8be4e71ceebbe38013ebea0069c2e6f3d1207a15e405ceb2efb532c7111c077e') AS run_0095_young_lily_hollister \gset
+\if :run_0095_young_lily_hollister
+\echo Running 0095_young_lily_hollister
 ALTER TABLE "usage_ledger" ADD COLUMN "success_rate_outcome" varchar(16);
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION fn_is_message_request_finalized(
@@ -516,21 +567,33 @@ EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('8be4e71ceebbe38013ebea0069c2e6f3d1207a15e405ceb2efb532c7111c077e', 1776916341782);
+\else
+\echo Skipping 0095_young_lily_hollister (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0096_nosy_lifeguard
--- File: drizzle/0096_nosy_lifeguard.sql
+-- Migration 9/12: 0096_nosy_lifeguard
 -- Hash: fb0611e011de581bcd21015c68fe4369c5af3a98ecfe7450abd0aea23e935311
 -- created_at (ms): 1776930506029
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'fb0611e011de581bcd21015c68fe4369c5af3a98ecfe7450abd0aea23e935311') AS run_0096_nosy_lifeguard \gset
+\if :run_0096_nosy_lifeguard
+\echo Running 0096_nosy_lifeguard
 ALTER TABLE "system_settings" ADD COLUMN "pass_through_upstream_error_message" boolean DEFAULT true NOT NULL;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('fb0611e011de581bcd21015c68fe4369c5af3a98ecfe7450abd0aea23e935311', 1776930506029);
+\else
+\echo Skipping 0096_nosy_lifeguard (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0097_flaky_bishop
--- File: drizzle/0097_flaky_bishop.sql
+-- Migration 10/12: 0097_flaky_bishop
 -- Hash: 69c8bf95d4a7df3b92c2681f227420a237636d20f9aa080f824379bdc6225e3e
 -- created_at (ms): 1776965161942
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '69c8bf95d4a7df3b92c2681f227420a237636d20f9aa080f824379bdc6225e3e') AS run_0097_flaky_bishop \gset
+\if :run_0097_flaky_bishop
+\echo Running 0097_flaky_bishop
 ALTER TABLE "message_request" ADD COLUMN IF NOT EXISTS "actual_response_model" varchar(128);--> statement-breakpoint
 ALTER TABLE "usage_ledger" ADD COLUMN IF NOT EXISTS "actual_response_model" varchar(128);--> statement-breakpoint
 -- Update fn_upsert_usage_ledger trigger to propagate actual_response_model
@@ -633,13 +696,19 @@ EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('69c8bf95d4a7df3b92c2681f227420a237636d20f9aa080f824379bdc6225e3e', 1776965161942);
+\else
+\echo Skipping 0097_flaky_bishop (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0098_equal_selene
--- File: drizzle/0098_equal_selene.sql
+-- Migration 11/12: 0098_equal_selene
 -- Hash: 431224a0a57a0f7f42db8e19cb41b45f0a13e722ca4a27473e41ace83378c9c7
 -- created_at (ms): 1776965161943
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '431224a0a57a0f7f42db8e19cb41b45f0a13e722ca4a27473e41ace83378c9c7') AS run_0098_equal_selene \gset
+\if :run_0098_equal_selene
+\echo Running 0098_equal_selene
 ALTER TABLE "system_settings" ADD COLUMN "allow_non_conversation_endpoint_provider_fallback" boolean DEFAULT true NOT NULL;
 
 DELETE FROM "usage_ledger"
@@ -749,13 +818,19 @@ EXCEPTION WHEN OTHERS THEN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('431224a0a57a0f7f42db8e19cb41b45f0a13e722ca4a27473e41ace83378c9c7', 1776965161943);
+\else
+\echo Skipping 0098_equal_selene (already applied)
+\endif
 
 -- ----------------------------------------------------------------
--- Migration: 0099_conversation_audit_log
--- File: drizzle/0099_conversation_audit_log.sql
+-- Migration 12/12: 0099_conversation_audit_log
 -- Hash: ab26006653d97ca162dc2f4df30ea823e1ed1079690e161495af14ab98fffa54
 -- created_at (ms): 1776965161944
 -- ----------------------------------------------------------------
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = 'ab26006653d97ca162dc2f4df30ea823e1ed1079690e161495af14ab98fffa54') AS run_0099_conversation_audit_log \gset
+\if :run_0099_conversation_audit_log
+\echo Running 0099_conversation_audit_log
 -- Conversation Audit Log: session-level audit of AI proxy requests.
 -- Separate from the upstream "audit_log" table (admin operations audit) introduced in v0.7.1.
 --
@@ -837,39 +912,12 @@ CREATE INDEX IF NOT EXISTS "idx_conversation_audit_log_created_at_id"
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_conversation_audit_log_model"
   ON "conversation_audit_log" USING btree ("model");
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('ab26006653d97ca162dc2f4df30ea823e1ed1079690e161495af14ab98fffa54', 1776965161944);
+\else
+\echo Skipping 0099_conversation_audit_log (already applied)
+\endif
 
 -- =================================================================
--- Clean up orphaned drizzle rows for old local audit migrations
--- (their SQL files no longer exist on this branch)
+-- Done. If invoked with --single-transaction, psql auto-COMMITs here.
+-- If invoked without --single-transaction, you must run COMMIT; yourself.
 -- =================================================================
--- The old local migrations (0088_absent_felicia_hardy, 0089_supreme_skreet,
--- 0090_audit_session_model) are GONE from this branch. Their rows in
--- __drizzle_migrations must be removed so drizzle doesn't complain about
--- "phantom" entries. We match by the SQL hashes we recorded from the prior
--- merge branch — these are the ONLY safe values to delete.
-DELETE FROM "drizzle"."__drizzle_migrations" WHERE hash IN (
-  '05d674fbbcb4d7c51d4a1a90f15d88607b306b40fc95e24a527db449324a545d',  -- 0088_absent_felicia_hardy (legacy local)
-  '3f85f8f543a7e1ebef7bcaa8daa7c9564e22b66a281a6ab066b42692febba3df',  -- 0089_supreme_skreet (legacy local)
-  '7594de911706f9890f3c9a4cb5a21df4fef91a8324bc74a5e4e4f8cf4871aa6b'   -- 0090_audit_session_model (legacy local)
-);
--- Note: legacy 0090_audit_session_model was never in the journal, so there may be
--- NO row to delete. The DELETE is idempotent — safe either way.
-
--- =================================================================
--- Mark the above migrations as applied
--- =================================================================
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('8c216238324d86b4d908947e5a542f43bce989ad99cd288b6014ddb684b6a39d', 1776095902010); -- 0088_amazing_energizer
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('6ebc47c8396bb69ca8de489b0d1d69f9b20bdf49a3cb0348d93f81b9daf221a5', 1776409181358); -- 0089_curly_grey_gargoyle
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('8bc51f2aa51d63a5718392e76539f7674506fad6d1c1ed51ca82139b4b5875a2', 1776421578713); -- 0090_demonic_captain_universe
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('42d31e9e5d5ee7653b3bd28eb67b1cab754b2699e9d4f5cb822208767f5acdcb', 1776767493777); -- 0091_daily_carnage
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('1b6bbb106dac0345216a48c38727608eeff7d135016584cdcd02eee33d0f9b81', 1776800253243); -- 0092_smart_stone_men
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('66e19ed0a2686f0779da64145157e83d2c7bd1f2cc5fe0958459c55109c98024', 1776823153912); -- 0093_tricky_shockwave
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('367bf8b6af5332886251230f37dde0de3926daae8a90d609b0066d5087753ce5', 1776831143074); -- 0094_third_spacker_dave
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('8be4e71ceebbe38013ebea0069c2e6f3d1207a15e405ceb2efb532c7111c077e', 1776916341782); -- 0095_young_lily_hollister
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('fb0611e011de581bcd21015c68fe4369c5af3a98ecfe7450abd0aea23e935311', 1776930506029); -- 0096_nosy_lifeguard
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('69c8bf95d4a7df3b92c2681f227420a237636d20f9aa080f824379bdc6225e3e', 1776965161942); -- 0097_flaky_bishop
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('431224a0a57a0f7f42db8e19cb41b45f0a13e722ca4a27473e41ace83378c9c7', 1776965161943); -- 0098_equal_selene
-INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('ab26006653d97ca162dc2f4df30ea823e1ed1079690e161495af14ab98fffa54', 1776965161944); -- 0099_conversation_audit_log
-
--- Review everything above. If OK, COMMIT; else ROLLBACK;
--- COMMIT;
