@@ -4,7 +4,7 @@ import { AuditListClient } from "./_components/audit-list";
 export const dynamic = "force-dynamic";
 
 export default async function AuditPage() {
-  const t = await getTranslations("dashboard.audit");
+  const t = await getTranslations("dashboard.conversationAudit");
 
   return (
     <div className="space-y-6">
