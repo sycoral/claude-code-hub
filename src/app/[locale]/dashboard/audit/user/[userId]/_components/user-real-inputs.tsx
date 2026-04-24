@@ -86,9 +86,7 @@ export function UserRealInputsClient({ userId }: { userId: number }) {
         </Button>
       </div>
 
-      <div className="text-xs text-muted-foreground">
-        {t("scanHint", { count: totalScanned })}
-      </div>
+      <div className="text-xs text-muted-foreground">{t("scanHint", { count: totalScanned })}</div>
 
       <div className="space-y-2">
         {!isLoading && items.length === 0 && (
