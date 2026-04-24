@@ -2192,7 +2192,8 @@
       "noData": "該會話無稽核資料",
       "userMessage": "使用者",
       "assistantMessage": "助手",
-      "tokens": "tokens"
+      "tokens": "tokens",
+      "onlyRealInput": "僅顯示真實輸入"
     }
   }
 }

@@ -2207,7 +2207,8 @@
       "noData": "该会话无审计数据",
       "userMessage": "用户",
       "assistantMessage": "助手",
-      "tokens": "tokens"
+      "tokens": "tokens",
+      "onlyRealInput": "仅显示真实输入"
     }
   }
 }

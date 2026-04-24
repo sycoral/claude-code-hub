@@ -2184,7 +2184,8 @@
       "noData": "このセッションの監査データはありません",
       "userMessage": "ユーザー",
       "assistantMessage": "アシスタント",
-      "tokens": "トークン"
+      "tokens": "トークン",
+      "onlyRealInput": "実ユーザー入力のみ"
     }
   }
 }

@@ -2255,7 +2255,8 @@
       "noData": "No audit data for this session",
       "userMessage": "User",
       "assistantMessage": "Assistant",
-      "tokens": "tokens"
+      "tokens": "tokens",
+      "onlyRealInput": "Real input only"
     }
   }
 }

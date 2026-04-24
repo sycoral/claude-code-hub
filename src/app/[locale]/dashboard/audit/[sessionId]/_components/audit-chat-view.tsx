@@ -7,15 +7,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuditChatMessage, AuditSessionItem } from "@/actions/audit";
 import { getAuditChat, getAuditSessions } from "@/actions/audit";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Link } from "@/i18n/routing";
 import { AuditChatBubble } from "./audit-chat-bubble";
 import { AuditSessionStats } from "./audit-session-stats";
+
+// Block types considered "tool-related" — hidden when `onlyRealInput` is on.
+const TOOL_BLOCK_TYPES = new Set([
+  "tool_use",
+  "tool_result",
+  "function_call",
+  "function_call_output",
+]);
+
+type ExtractOpts = { hideToolBlocks?: boolean };
 
 // ---------------------------------------------------------------------------
 // Text extraction helpers
 // ---------------------------------------------------------------------------
 
-function extractTextContent(content: unknown): string {
+function extractTextContent(content: unknown, opts: ExtractOpts = {}): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
     return content
@@ -23,6 +35,10 @@ function extractTextContent(content: unknown): string {
         if (typeof block === "string") return block;
         if (block && typeof block === "object") {
           const b = block as Record<string, unknown>;
+          // Hide tool-related blocks when the "real input only" filter is on.
+          if (opts.hideToolBlocks && typeof b.type === "string" && TOOL_BLOCK_TYPES.has(b.type)) {
+            return "";
+          }
           // Normal text (Claude)
           if (b.type === "text" && typeof b.text === "string") return b.text;
           // Input text (Codex/OpenAI Response API)
@@ -109,19 +125,19 @@ function extractTextContent(content: unknown): string {
   return JSON.stringify(content, null, 2);
 }
 
-function extractResponseText(response: unknown): string {
+function extractResponseText(response: unknown, opts: ExtractOpts = {}): string {
   if (!response || typeof response !== "object") return JSON.stringify(response, null, 2);
 
   const resp = response as Record<string, unknown>;
 
   // Claude format: response.content[]
   if (Array.isArray(resp.content) && resp.content.length > 0) {
-    return extractTextContent(resp.content);
+    return extractTextContent(resp.content, opts);
   }
 
   // Codex format: response.output[]
   if (Array.isArray(resp.output)) {
-    return extractTextContent(resp.output);
+    return extractTextContent(resp.output, opts);
   }
 
   // OpenAI format: response.choices[].message.content
@@ -136,11 +152,13 @@ function extractResponseText(response: unknown): string {
 
   // Raw format
   if ("_raw" in resp) {
-    return extractResponseText(resp._raw);
+    return extractResponseText(resp._raw, opts);
   }
 
   return JSON.stringify(response, null, 2);
 }
+
+const ONLY_REAL_INPUT_KEY = "audit.only-real-input";
 
 function formatDuration(ms: number): string {
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
@@ -164,7 +182,21 @@ export function AuditChatViewClient() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionInfo, setSessionInfo] = useState<AuditSessionItem | null>(null);
+  const [onlyRealInput, setOnlyRealInput] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Restore toggle from localStorage on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setOnlyRealInput(window.localStorage.getItem(ONLY_REAL_INPUT_KEY) === "1");
+  }, []);
+
+  const handleToggleRealInput = useCallback((next: boolean) => {
+    setOnlyRealInput(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ONLY_REAL_INPUT_KEY, next ? "1" : "0");
+    }
+  }, []);
 
   const fetchMessages = useCallback(
     async (pageNum: number) => {
@@ -249,6 +281,16 @@ export function AuditChatViewClient() {
             userName={sessionInfo.userName ?? "-"}
           />
         )}
+        <div className="flex items-center justify-end gap-2">
+          <Switch
+            id="audit-only-real-input"
+            checked={onlyRealInput}
+            onCheckedChange={handleToggleRealInput}
+          />
+          <Label htmlFor="audit-only-real-input" className="cursor-pointer text-xs">
+            {t("onlyRealInput")}
+          </Label>
+        </div>
       </div>
 
       {/* Messages */}
@@ -259,6 +301,7 @@ export function AuditChatViewClient() {
 
         {messages.map((msg) => {
           const bubbles: React.ReactNode[] = [];
+          const extractOpts: ExtractOpts = { hideToolBlocks: onlyRealInput };
 
           // Support both Claude (messages[]) and Codex (input[]) formats
           const rawMessages = Array.isArray(msg.request.messages)
@@ -272,14 +315,17 @@ export function AuditChatViewClient() {
           // System prompt (Claude) or instructions (Codex) — only present in seq 1
           const systemContent = msg.request.system ?? msg.request.instructions;
           if (systemContent) {
-            bubbles.push(
-              <AuditChatBubble
-                key={`${msg.seq}-system`}
-                role="system"
-                content={extractTextContent(systemContent)}
-                timestamp={msg.ts}
-              />
-            );
+            const content = extractTextContent(systemContent, extractOpts);
+            if (content.trim()) {
+              bubbles.push(
+                <AuditChatBubble
+                  key={`${msg.seq}-system`}
+                  role="system"
+                  content={content}
+                  timestamp={msg.ts}
+                />
+              );
+            }
           }
 
           // Render all stored messages (already extracted as new-only by backend)
@@ -290,37 +336,44 @@ export function AuditChatViewClient() {
 
             // Codex function_call / function_call_output — show as tool interaction
             if (type === "function_call" || type === "function_call_output") {
-              bubbles.push(
-                <AuditChatBubble
-                  key={`${msg.seq}-tool-${idx}`}
-                  role={type === "function_call" ? "assistant" : "user"}
-                  content={extractTextContent(
-                    type === "function_call"
-                      ? [{ type: "function_call", name: m.name, arguments: m.arguments }]
-                      : [{ type: "function_call_output", output: m.output }]
-                  )}
-                  timestamp={msg.ts}
-                />
+              const content = extractTextContent(
+                type === "function_call"
+                  ? [{ type: "function_call", name: m.name, arguments: m.arguments }]
+                  : [{ type: "function_call_output", output: m.output }],
+                extractOpts
               );
+              if (content.trim()) {
+                bubbles.push(
+                  <AuditChatBubble
+                    key={`${msg.seq}-tool-${idx}`}
+                    role={type === "function_call" ? "assistant" : "user"}
+                    content={content}
+                    timestamp={msg.ts}
+                  />
+                );
+              }
               continue;
             }
 
             if (role === "user" || role === "assistant") {
-              bubbles.push(
-                <AuditChatBubble
-                  key={`${msg.seq}-${role}-${idx}`}
-                  role={role as "user" | "assistant"}
-                  content={extractTextContent(m.content)}
-                  timestamp={msg.ts}
-                />
-              );
+              const content = extractTextContent(m.content, extractOpts);
+              if (content.trim()) {
+                bubbles.push(
+                  <AuditChatBubble
+                    key={`${msg.seq}-${role}-${idx}`}
+                    role={role as "user" | "assistant"}
+                    content={content}
+                    timestamp={msg.ts}
+                  />
+                );
+              }
             }
           }
 
           // The actual new response for this seq
           if (msg.response) {
-            const respText = extractResponseText(msg.response);
-            if (respText) {
+            const respText = extractResponseText(msg.response, extractOpts);
+            if (respText.trim()) {
               bubbles.push(
                 <AuditChatBubble
                   key={`${msg.seq}-response`}
