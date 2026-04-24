@@ -1,4 +1,4 @@
-import { isIP } from "node:net";
+import { isIP } from "./is-ip";
 import {
   DEFAULT_IP_EXTRACTION_CONFIG,
   type IpExtractionConfig,
