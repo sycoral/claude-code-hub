@@ -3,9 +3,13 @@ import { UserRealInputsClient } from "./_components/user-real-inputs";
 
 export const dynamic = "force-dynamic";
 
-export default async function AuditUserPage({ params }: { params: Promise<{ userId: string }> }) {
-  const { userId } = await params;
-  const t = await getTranslations("dashboard.conversationAudit.userView");
+export default async function AuditUserPage({
+  params,
+}: {
+  params: Promise<{ locale: string; userId: string }>;
+}) {
+  const { locale, userId } = await params;
+  const t = await getTranslations({ locale, namespace: "dashboard.conversationAudit.userView" });
   const userIdNum = Number(userId);
 
   return (
