@@ -62,6 +62,7 @@ export async function saveSystemSettings(formData: {
   cleanupSchedule?: string;
   cleanupBatchSize?: number;
   enableClientVersionCheck?: boolean;
+  clientVersionPinned?: Record<string, string>;
   verboseProviderError?: boolean;
   passThroughUpstreamErrorMessage?: boolean;
   enableHttp2?: boolean;
@@ -110,6 +111,7 @@ export async function saveSystemSettings(formData: {
       cleanupSchedule: validated.cleanupSchedule,
       cleanupBatchSize: validated.cleanupBatchSize,
       enableClientVersionCheck: validated.enableClientVersionCheck,
+      clientVersionPinned: validated.clientVersionPinned,
       verboseProviderError: validated.verboseProviderError,
       passThroughUpstreamErrorMessage: validated.passThroughUpstreamErrorMessage,
       enableHttp2: validated.enableHttp2,

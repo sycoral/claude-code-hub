@@ -53,5 +53,13 @@
     "enable": "Enable Update Reminder",
     "enableSuccess": "Client version check enabled",
     "toggleFailed": "Update failed"
+  },
+  "pinned": {
+    "title": "Pinned Versions (per client type)",
+    "description": "When set, the value is used as the minimum required version. Leave blank to skip enforcement and fall back to automatic GA detection.",
+    "placeholder": "Leave blank = no enforcement",
+    "save": "Save Pinned Versions",
+    "saveSuccess": "Pinned versions updated",
+    "saveFailed": "Failed to save pinned versions"
   }
 }

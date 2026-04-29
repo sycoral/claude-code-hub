@@ -67,8 +67,11 @@ async function ClientVersionsSettingsContent() {
   const enableClientVersionCheck = settingsResult.ok
     ? settingsResult.data.enableClientVersionCheck
     : false;
+  const clientVersionPinned = settingsResult.ok
+    ? (settingsResult.data.clientVersionPinned ?? {})
+    : {};
 
-  return <ClientVersionToggle enabled={enableClientVersionCheck} />;
+  return <ClientVersionToggle enabled={enableClientVersionCheck} pinned={clientVersionPinned} />;
 }
 
 async function ClientVersionsStatsContent() {

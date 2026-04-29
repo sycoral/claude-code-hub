@@ -41,6 +41,11 @@ export interface SystemSettings {
   // 客户端版本检查配置
   enableClientVersionCheck: boolean;
 
+  // 客户端锁定版本（按 client type 维度）
+  // 留空 → 回落到自动 GA 检测；填值 → 严格按填的版本作为最低版本要求
+  // 例: { "claude-cli": "2.0.30" }
+  clientVersionPinned: Record<string, string>;
+
   // 供应商不可用时是否返回详细错误信息
   verboseProviderError: boolean;
 
@@ -136,6 +141,9 @@ export interface UpdateSystemSettingsInput {
 
   // 客户端版本检查配置（可选）
   enableClientVersionCheck?: boolean;
+
+  // 客户端锁定版本（可选；按 client type 维度的 map）
+  clientVersionPinned?: Record<string, string>;
 
   // 供应商不可用时是否返回详细错误信息（可选）
   verboseProviderError?: boolean;

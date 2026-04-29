@@ -701,6 +701,13 @@
       "when": 1776965161944,
       "tag": "0099_conversation_audit_log",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1777431845967,
+      "tag": "0100_client_version_pinned",
+      "breakpoints": true
     }
   ]
 }

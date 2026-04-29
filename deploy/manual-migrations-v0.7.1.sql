@@ -910,4 +910,18 @@ INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('ab26006
 \echo Skipping 0099_conversation_audit_log (already applied)
 \endif
 
+-- =================================================================
+-- Migration 13/13: 0100_client_version_pinned
+-- =================================================================
+SELECT NOT EXISTS (SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = '8fad95af7259370be84c60cac936b768531a68a8182fd5ce9e087f310cabeb3d') AS run_0100_client_version_pinned \gset
+\if :run_0100_client_version_pinned
+\echo Running 0100_client_version_pinned
+
+ALTER TABLE "system_settings" ADD COLUMN IF NOT EXISTS "client_version_pinned" jsonb DEFAULT '{}'::jsonb NOT NULL;
+
+INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES ('8fad95af7259370be84c60cac936b768531a68a8182fd5ce9e087f310cabeb3d', 1777431845967);
+\else
+\echo Skipping 0100_client_version_pinned (already applied)
+\endif
+
 -- Done. --single-transaction auto-COMMITs on clean exit.

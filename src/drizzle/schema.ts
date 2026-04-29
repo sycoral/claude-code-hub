@@ -746,6 +746,14 @@ export const systemSettings = pgTable('system_settings', {
   // 客户端版本检查配置
   enableClientVersionCheck: boolean('enable_client_version_check').notNull().default(false),
 
+  // 客户端锁定版本（按 client type 维度）
+  // 留空 → 回落到自动 GA 检测；填值 → 严格按填的版本作为最低版本要求
+  // 例: { "claude-cli": "2.0.30", "claude-vscode": "" }
+  clientVersionPinned: jsonb('client_version_pinned')
+    .$type<Record<string, string>>()
+    .notNull()
+    .default(sql`'{}'::jsonb`),
+
   // 供应商不可用时是否返回详细错误信息
   verboseProviderError: boolean('verbose_provider_error').notNull().default(false),
 

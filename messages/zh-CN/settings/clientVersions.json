@@ -22,6 +22,14 @@
     "disableSuccess": "已关闭客户端版本检查",
     "toggleFailed": "更新失败"
   },
+  "pinned": {
+    "title": "锁定版本（按客户端类型）",
+    "description": "填写后将以该版本作为最低版本要求；留空表示该客户端不被拦截，回落到自动 GA 检测。",
+    "placeholder": "留空 = 不强制",
+    "save": "保存锁定版本",
+    "saveSuccess": "锁定版本已更新",
+    "saveFailed": "保存锁定版本失败"
+  },
   "features": {
     "title": "功能说明",
     "whatHappens": "启用后会发生什么：",

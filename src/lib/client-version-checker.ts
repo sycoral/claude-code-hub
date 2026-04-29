@@ -3,6 +3,7 @@ import { getRedisClient } from "@/lib/redis/client";
 import { type ClientInfo, parseUserAgent } from "@/lib/ua-parser";
 import { isVersionGreater, isVersionLess } from "@/lib/version";
 import { getActiveUserVersions, type RawUserVersion } from "@/repository/client-versions";
+import { getSystemSettings } from "@/repository/system-config";
 
 /**
  * Redis Key 前缀
@@ -243,6 +244,19 @@ export class ClientVersionChecker {
     userVersion: string
   ): Promise<{ needsUpgrade: boolean; gaVersion: string | null }> {
     try {
+      // 1. 优先检查 pinned 版本：管理员手动锁定的最低版本，覆盖自动 GA 检测
+      const settings = await getSystemSettings();
+      const pinned = settings.clientVersionPinned?.[clientType]?.trim();
+      if (pinned) {
+        const needsUpgrade = isVersionLess(userVersion, pinned);
+        logger.debug(
+          { clientType, userVersion, pinned, needsUpgrade },
+          "[ClientVersionChecker] 使用锁定版本进行检查"
+        );
+        return { needsUpgrade, gaVersion: pinned };
+      }
+
+      // 2. pinned 未设置，回落到自动 GA 检测
       const gaVersion = await ClientVersionChecker.detectGAVersion(clientType);
       if (!gaVersion) {
         return { needsUpgrade: false, gaVersion: null }; // 无 GA 版本，放行

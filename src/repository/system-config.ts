@@ -149,6 +149,7 @@ function createFallbackSettings(): SystemSettings {
     cleanupSchedule: "0 2 * * *",
     cleanupBatchSize: 10000,
     enableClientVersionCheck: false,
+    clientVersionPinned: {},
     verboseProviderError: false,
     passThroughUpstreamErrorMessage: true,
     enableHttp2: false,
@@ -270,6 +271,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
     };
     const fullSelection = {
       passThroughUpstreamErrorMessage: systemSettings.passThroughUpstreamErrorMessage,
+      clientVersionPinned: systemSettings.clientVersionPinned,
       ...selectionWithoutPassThrough,
     };
 
@@ -518,6 +520,7 @@ export async function updateSystemSettings(
   };
   const fullReturning = {
     passThroughUpstreamErrorMessage: systemSettings.passThroughUpstreamErrorMessage,
+    clientVersionPinned: systemSettings.clientVersionPinned,
     ...returningWithoutPassThrough,
   };
 
@@ -572,6 +575,11 @@ export async function updateSystemSettings(
     // 客户端版本检查配置字段（如果提供）
     if (payload.enableClientVersionCheck !== undefined) {
       updates.enableClientVersionCheck = payload.enableClientVersionCheck;
+    }
+
+    // 客户端锁定版本（如果提供）
+    if (payload.clientVersionPinned !== undefined) {
+      updates.clientVersionPinned = payload.clientVersionPinned;
     }
 
     // 供应商错误详情配置字段（如果提供）
@@ -699,14 +707,17 @@ export async function updateSystemSettings(
         error,
       });
 
-      // 第一层降级：仅移除本次新增的 allowNonConversationEndpointProviderFallback 列，
-      // 其它字段继续原值更新 / 返回，避免只缺该列时连带丢失 codex/highConcurrency 等更新。
+      // 第一层降级：仅移除本次新增的 allowNonConversationEndpointProviderFallback +
+      // clientVersionPinned 列，其它字段继续原值更新 / 返回，避免只缺该列时连带丢失
+      // codex/highConcurrency 等更新。
       const {
         allowNonConversationEndpointProviderFallback: _omitUpdate,
+        clientVersionPinned: _omitPinnedUpdate,
         ...updatesWithoutNonConversationFallback
       } = updates;
       const {
         allowNonConversationEndpointProviderFallback: _omitReturning,
+        clientVersionPinned: _omitPinnedReturning,
         ...returningWithoutNonConversationFallback
       } = fullReturning;
 
@@ -729,6 +740,7 @@ export async function updateSystemSettings(
         try {
           const withoutPassThroughUpdates = { ...updates };
           delete withoutPassThroughUpdates.passThroughUpstreamErrorMessage;
+          delete withoutPassThroughUpdates.clientVersionPinned;
           [updated] = await executor
             .update(systemSettings)
             .set(withoutPassThroughUpdates)
@@ -741,6 +753,7 @@ export async function updateSystemSettings(
 
           const downgradedUpdates = { ...updates };
           delete downgradedUpdates.passThroughUpstreamErrorMessage;
+          delete downgradedUpdates.clientVersionPinned;
           delete downgradedUpdates.enableHighConcurrencyMode;
           delete downgradedUpdates.publicStatusWindowHours;
           delete downgradedUpdates.publicStatusAggregationIntervalMinutes;
