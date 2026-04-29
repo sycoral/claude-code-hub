@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/drizzle/db";
 import { systemSettings } from "@/drizzle/schema";
 import { logger } from "@/lib/logger";
@@ -276,7 +276,11 @@ export async function getSystemSettings(): Promise<SystemSettings> {
     };
 
     try {
-      const [row] = await db.select(fullSelection).from(systemSettings).limit(1);
+      const [row] = await db
+        .select(fullSelection)
+        .from(systemSettings)
+        .orderBy(asc(systemSettings.id))
+        .limit(1);
       return row ?? null;
     } catch (error) {
       // 兼容旧版本数据库：system_settings 表存在但列未迁移齐全
@@ -296,6 +300,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
           const [row] = await db
             .select(selectionWithoutNonConversationFallback)
             .from(systemSettings)
+            .orderBy(asc(systemSettings.id))
             .limit(1);
           return row ?? null;
         } catch (nonConversationFallbackError) {
@@ -310,7 +315,11 @@ export async function getSystemSettings(): Promise<SystemSettings> {
         }
 
         try {
-          const [row] = await db.select(selectionWithoutPassThrough).from(systemSettings).limit(1);
+          const [row] = await db
+            .select(selectionWithoutPassThrough)
+            .from(systemSettings)
+            .orderBy(asc(systemSettings.id))
+            .limit(1);
           return row ?? null;
         } catch (passThroughFallbackError) {
           if (!isUndefinedColumnError(passThroughFallbackError)) {
@@ -328,6 +337,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
             const [row] = await db
               .select(selectionWithoutHighConcurrencyMode)
               .from(systemSettings)
+              .orderBy(asc(systemSettings.id))
               .limit(1);
             return row ?? null;
           } catch (fallbackError) {
@@ -343,6 +353,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
               const [row] = await db
                 .select(selectionWithoutCodexAndHighConcurrency)
                 .from(systemSettings)
+                .orderBy(asc(systemSettings.id))
                 .limit(1);
               return row ?? null;
             } catch (legacyFallbackError) {
@@ -365,7 +376,11 @@ export async function getSystemSettings(): Promise<SystemSettings> {
                 updatedAt: systemSettings.updatedAt,
               };
 
-              const [row] = await db.select(minimalSelection).from(systemSettings).limit(1);
+              const [row] = await db
+                .select(minimalSelection)
+                .from(systemSettings)
+                .orderBy(asc(systemSettings.id))
+                .limit(1);
               return row ?? null;
             }
           }
