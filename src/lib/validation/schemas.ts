@@ -954,8 +954,6 @@ export const UpdateSystemSettingsSchema = z.object({
     .optional(),
   // 客户端版本检查配置（可选）
   enableClientVersionCheck: z.boolean().optional(),
-  // 客户端锁定版本（可选；按 client type 维度的 map，value 留空表示该 client 不强制）
-  clientVersionPinned: z.record(z.string(), z.string()).optional(),
   // 供应商不可用时是否返回详细错误信息（可选）
   verboseProviderError: z.boolean().optional(),
   // 标准代理错误响应是否透传安全脱敏后的上游错误 message（可选）

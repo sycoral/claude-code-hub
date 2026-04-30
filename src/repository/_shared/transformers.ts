@@ -216,10 +216,6 @@ export function toSystemSettings(dbSettings: any): SystemSettings {
     cleanupSchedule: dbSettings?.cleanupSchedule ?? "0 2 * * *",
     cleanupBatchSize: dbSettings?.cleanupBatchSize ?? 10000,
     enableClientVersionCheck: dbSettings?.enableClientVersionCheck ?? false,
-    clientVersionPinned:
-      dbSettings?.clientVersionPinned && typeof dbSettings.clientVersionPinned === "object"
-        ? (dbSettings.clientVersionPinned as Record<string, string>)
-        : {},
     verboseProviderError: dbSettings?.verboseProviderError ?? false,
     passThroughUpstreamErrorMessage: dbSettings?.passThroughUpstreamErrorMessage ?? true,
     enableHttp2: dbSettings?.enableHttp2 ?? false,

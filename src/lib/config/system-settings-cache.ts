@@ -134,7 +134,6 @@ export async function getCachedSystemSettings(): Promise<SystemSettings> {
       cleanupSchedule: "0 2 * * *",
       cleanupBatchSize: 10000,
       enableClientVersionCheck: false,
-      clientVersionPinned: {},
       enableHttp2: DEFAULT_SETTINGS.enableHttp2,
       enableHighConcurrencyMode: DEFAULT_SETTINGS.enableHighConcurrencyMode,
       interceptAnthropicWarmupRequests: DEFAULT_SETTINGS.interceptAnthropicWarmupRequests,

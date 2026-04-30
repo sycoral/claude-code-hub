@@ -1,1 +1,0 @@
-ALTER TABLE "system_settings" ADD COLUMN "client_version_pinned" jsonb DEFAULT '{}'::jsonb NOT NULL;

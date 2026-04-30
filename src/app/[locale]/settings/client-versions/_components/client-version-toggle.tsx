@@ -1,35 +1,21 @@
 "use client";
 
-import { AlertCircle, Lock, Shield, ShieldCheck } from "lucide-react";
+import { AlertCircle, Shield, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { saveSystemSettings } from "@/actions/system-config";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { SettingsToggleRow } from "../../_components/ui/settings-ui";
 
 interface ClientVersionToggleProps {
   enabled: boolean;
-  pinned: Record<string, string>;
-  /** 动态客户端类型：来自最近 7 天活跃 UA ∪ 已经配过 pinned 值的 key */
-  clientTypes: string[];
 }
 
-export function ClientVersionToggle({ enabled, pinned, clientTypes }: ClientVersionToggleProps) {
+export function ClientVersionToggle({ enabled }: ClientVersionToggleProps) {
   const t = useTranslations("settings.clientVersions");
   const [isEnabled, setIsEnabled] = useState(enabled);
-  const [pinnedDraft, setPinnedDraft] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {};
-    for (const clientType of clientTypes) {
-      initial[clientType] = pinned[clientType] ?? "";
-    }
-    return initial;
-  });
   const [isPending, startTransition] = useTransition();
-  const [isSavingPinned, startPinnedTransition] = useTransition();
 
   async function handleToggle(checked: boolean) {
     startTransition(async () => {
@@ -42,30 +28,6 @@ export function ClientVersionToggle({ enabled, pinned, clientTypes }: ClientVers
         toast.success(checked ? t("toggle.enableSuccess") : t("toggle.disableSuccess"));
       } else {
         toast.error(result.error || t("toggle.toggleFailed"));
-      }
-    });
-  }
-
-  function handlePinnedChange(clientType: string, value: string) {
-    setPinnedDraft((prev) => ({ ...prev, [clientType]: value }));
-  }
-
-  async function handleSavePinned() {
-    startPinnedTransition(async () => {
-      const sanitized: Record<string, string> = {};
-      for (const [clientType, value] of Object.entries(pinnedDraft)) {
-        const trimmed = value.trim();
-        if (trimmed.length > 0) {
-          sanitized[clientType] = trimmed;
-        }
-      }
-
-      const result = await saveSystemSettings({ clientVersionPinned: sanitized });
-
-      if (result.ok) {
-        toast.success(t("pinned.saveSuccess"));
-      } else {
-        toast.error(result.error || t("pinned.saveFailed"));
       }
     });
   }
@@ -83,61 +45,6 @@ export function ClientVersionToggle({ enabled, pinned, clientTypes }: ClientVers
         onCheckedChange={handleToggle}
         disabled={isPending}
       />
-
-      {/* Pinned versions section (only show when enabled) */}
-      {isEnabled && (
-        <div className="p-4 rounded-xl border bg-white/[0.02] border-white/5">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg shrink-0 bg-[#E25706]/10">
-              <Lock className="h-4 w-4 text-[#E25706]" />
-            </div>
-            <div className="space-y-3 min-w-0 flex-1">
-              <div>
-                <p className="text-sm font-medium text-foreground">{t("pinned.title")}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{t("pinned.description")}</p>
-              </div>
-              <div className="space-y-2">
-                {clientTypes.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic">{t("pinned.noClients")}</p>
-                ) : (
-                  clientTypes.map((clientType) => (
-                    <div
-                      key={clientType}
-                      className="flex flex-col sm:flex-row sm:items-center gap-2"
-                    >
-                      <Label
-                        htmlFor={`pinned-${clientType}`}
-                        className="text-xs text-muted-foreground sm:w-56 sm:shrink-0"
-                      >
-                        {clientType}
-                      </Label>
-                      <Input
-                        id={`pinned-${clientType}`}
-                        type="text"
-                        placeholder={t("pinned.placeholder")}
-                        value={pinnedDraft[clientType] ?? ""}
-                        onChange={(e) => handlePinnedChange(clientType, e.target.value)}
-                        disabled={isSavingPinned}
-                        className="h-8 text-xs"
-                      />
-                    </div>
-                  ))
-                )}
-              </div>
-              <div className="flex justify-end pt-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleSavePinned}
-                  disabled={isSavingPinned}
-                >
-                  {t("pinned.save")}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Feature Alert */}
       <div
