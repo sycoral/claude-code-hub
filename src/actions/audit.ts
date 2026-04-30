@@ -345,17 +345,29 @@ export async function getAuditUserRealInputs(params: {
   }
 }
 
+// Some clients (Claude Code subagent rounds, slash-command harness, etc.)
+// embed tool results / system reminders / command echoes as plain `text`
+// blocks instead of structured tool_result blocks. Those start with these
+// envelope tokens and are not human-authored input.
+const SYSTEM_WRAPPER_TEXT_PATTERN =
+  /^(\[Tool results\]|<(tool_result|tool_use|system-reminder|command-(name|message|args)|local-command-(stdout|stderr|caveat)|function_calls|functions)\b)/;
+
 // Extracts just the human-authored text from a user message's content,
 // ignoring tool_result / function_call_output / image blocks and the
 // <image> wrapper tags Codex uses.
 function extractRealUserText(content: unknown): string {
-  if (typeof content === "string") return content.trim();
+  if (typeof content === "string") {
+    const t = content.trim();
+    if (SYSTEM_WRAPPER_TEXT_PATTERN.test(t)) return "";
+    return t;
+  }
   if (!Array.isArray(content)) return "";
   const parts: string[] = [];
   for (const block of content) {
     if (typeof block === "string") {
       const t = block.trim();
-      if (t) parts.push(t);
+      if (!t || SYSTEM_WRAPPER_TEXT_PATTERN.test(t)) continue;
+      parts.push(t);
       continue;
     }
     if (!block || typeof block !== "object") continue;
@@ -365,6 +377,7 @@ function extractRealUserText(content: unknown): string {
       if (typeof b.text === "string") {
         const t = b.text.trim();
         if (/^<\/?image\b[^>]*>$/.test(t)) continue; // Codex image wrapper
+        if (SYSTEM_WRAPPER_TEXT_PATTERN.test(t)) continue; // tool-result echo etc.
         if (t) parts.push(t);
       }
     }
