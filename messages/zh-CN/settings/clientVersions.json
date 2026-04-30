@@ -28,7 +28,8 @@
     "placeholder": "留空 = 不强制",
     "save": "保存锁定版本",
     "saveSuccess": "锁定版本已更新",
-    "saveFailed": "保存锁定版本失败"
+    "saveFailed": "保存锁定版本失败",
+    "noClients": "过去 7 天内没有检测到活跃客户端，无可锁定的客户端类型。"
   },
   "features": {
     "title": "功能说明",

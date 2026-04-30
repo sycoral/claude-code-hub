@@ -60,6 +60,7 @@
     "placeholder": "留空 = 不強制",
     "save": "儲存鎖定版本",
     "saveSuccess": "鎖定版本已更新",
-    "saveFailed": "儲存鎖定版本失敗"
+    "saveFailed": "儲存鎖定版本失敗",
+    "noClients": "過去 7 天內未偵測到活躍用戶端，無可鎖定的用戶端類型。"
   }
 }

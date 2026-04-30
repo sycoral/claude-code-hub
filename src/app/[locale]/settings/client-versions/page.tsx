@@ -63,7 +63,11 @@ export default async function ClientVersionsPage({
 }
 
 async function ClientVersionsSettingsContent() {
-  const settingsResult = await fetchSystemSettings();
+  const [settingsResult, statsResult] = await Promise.all([
+    fetchSystemSettings(),
+    fetchClientVersionStats(),
+  ]);
+
   const enableClientVersionCheck = settingsResult.ok
     ? settingsResult.data.enableClientVersionCheck
     : false;
@@ -71,7 +75,19 @@ async function ClientVersionsSettingsContent() {
     ? (settingsResult.data.clientVersionPinned ?? {})
     : {};
 
-  return <ClientVersionToggle enabled={enableClientVersionCheck} pinned={clientVersionPinned} />;
+  // 锁定输入框列表 = 最近 7 天活跃的客户端类型 ∪ 已经配过 pinned 值的类型。
+  // 后者保证：用户配置过的旧客户端即便最近没流量，也仍然能看到/清掉锁定值。
+  const detectedTypes = statsResult.ok ? statsResult.data.map((s) => s.clientType) : [];
+  const pinnedKeys = Object.keys(clientVersionPinned);
+  const clientTypes = Array.from(new Set([...detectedTypes, ...pinnedKeys]));
+
+  return (
+    <ClientVersionToggle
+      enabled={enableClientVersionCheck}
+      pinned={clientVersionPinned}
+      clientTypes={clientTypes}
+    />
+  );
 }
 
 async function ClientVersionsStatsContent({ locale }: { locale: string }) {

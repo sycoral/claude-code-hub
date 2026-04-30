@@ -60,6 +60,7 @@
     "placeholder": "Leave blank = no enforcement",
     "save": "Save Pinned Versions",
     "saveSuccess": "Pinned versions updated",
-    "saveFailed": "Failed to save pinned versions"
+    "saveFailed": "Failed to save pinned versions",
+    "noClients": "No active client types detected in the last 7 days; nothing to pin yet."
   }
 }

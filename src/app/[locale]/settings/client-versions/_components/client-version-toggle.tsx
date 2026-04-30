@@ -11,24 +11,19 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { SettingsToggleRow } from "../../_components/ui/settings-ui";
 
-const PINNED_CLIENT_TYPES = [
-  "claude-cli",
-  "claude-vscode",
-  "claude-cli-unknown",
-  "anthropic-sdk-typescript",
-] as const;
-
 interface ClientVersionToggleProps {
   enabled: boolean;
   pinned: Record<string, string>;
+  /** 动态客户端类型：来自最近 7 天活跃 UA ∪ 已经配过 pinned 值的 key */
+  clientTypes: string[];
 }
 
-export function ClientVersionToggle({ enabled, pinned }: ClientVersionToggleProps) {
+export function ClientVersionToggle({ enabled, pinned, clientTypes }: ClientVersionToggleProps) {
   const t = useTranslations("settings.clientVersions");
   const [isEnabled, setIsEnabled] = useState(enabled);
   const [pinnedDraft, setPinnedDraft] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const clientType of PINNED_CLIENT_TYPES) {
+    for (const clientType of clientTypes) {
       initial[clientType] = pinned[clientType] ?? "";
     }
     return initial;
@@ -102,25 +97,32 @@ export function ClientVersionToggle({ enabled, pinned }: ClientVersionToggleProp
                 <p className="mt-1 text-xs text-muted-foreground">{t("pinned.description")}</p>
               </div>
               <div className="space-y-2">
-                {PINNED_CLIENT_TYPES.map((clientType) => (
-                  <div key={clientType} className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <Label
-                      htmlFor={`pinned-${clientType}`}
-                      className="text-xs text-muted-foreground sm:w-56 sm:shrink-0"
+                {clientTypes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground italic">{t("pinned.noClients")}</p>
+                ) : (
+                  clientTypes.map((clientType) => (
+                    <div
+                      key={clientType}
+                      className="flex flex-col sm:flex-row sm:items-center gap-2"
                     >
-                      {clientType}
-                    </Label>
-                    <Input
-                      id={`pinned-${clientType}`}
-                      type="text"
-                      placeholder={t("pinned.placeholder")}
-                      value={pinnedDraft[clientType] ?? ""}
-                      onChange={(e) => handlePinnedChange(clientType, e.target.value)}
-                      disabled={isSavingPinned}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                ))}
+                      <Label
+                        htmlFor={`pinned-${clientType}`}
+                        className="text-xs text-muted-foreground sm:w-56 sm:shrink-0"
+                      >
+                        {clientType}
+                      </Label>
+                      <Input
+                        id={`pinned-${clientType}`}
+                        type="text"
+                        placeholder={t("pinned.placeholder")}
+                        value={pinnedDraft[clientType] ?? ""}
+                        onChange={(e) => handlePinnedChange(clientType, e.target.value)}
+                        disabled={isSavingPinned}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  ))
+                )}
               </div>
               <div className="flex justify-end pt-1">
                 <Button
