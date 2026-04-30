@@ -1,9 +1,8 @@
 name: Auto Release Pipeline
 
 on:
-  push:
-    branches:
-      - main
+  # fork 模式：只接受手动触发，不再每次 push main 都自动发版。
+  # 需要发版时去 Actions 页面 Run workflow 手动跑。
   workflow_dispatch:
     inputs:
       version_type:
