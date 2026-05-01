@@ -40,6 +40,7 @@
     "modelAllowlist": "模型白名單",
     "healthAndLimits": "熔斷與限額",
     "priorityTiers": "優先級分層",
+    "userGroupStickyConfig": "用戶分組黏性設定",
     "modelRedirect": "模型重定向預覽",
     "endpointSummary": "端點狀態彙總"
   },
@@ -48,6 +49,13 @@
     "model_filter_skipped_for_resource_request": "目前請求沒有模型名，依資源型請求邏輯跳過白名單過濾。",
     "redirect_preview_skipped_for_resource_request": "目前沒有模型名，因此跳過重定向預覽。",
     "redirects_apply_after_provider_selection": "模型重定向會在供應商選定之後才生效。",
-    "endpoint_status_does_not_change_provider_preselection": "端點狀態僅作為下游風險提示，目前不會改變供應商預選結果。"
+    "endpoint_status_does_not_change_provider_preselection": "端點狀態僅作為下游風險提示，目前不會改變供應商預選結果。",
+    "user_group_sticky_skipped_no_group": "未選定單一分組，跳過用戶分組黏性。",
+    "user_group_sticky_skipped_multi_group": "選定了多個分組，V1 不對多組用戶啟用黏性，直接走加權隨機。",
+    "user_group_sticky_skipped_unknown_group": "選定的分組不存在，無法讀取黏性設定。",
+    "user_group_sticky_disabled": "該分組的用戶黏性已關閉，調度仍按現有 weight/priority 進行。",
+    "user_group_sticky_config_unavailable": "讀取黏性設定失敗（DB/快取異常），調度按現有邏輯兜底。",
+    "user_group_sticky_enabled_uncapped": "黏性已啟用（未配置 cap）。實際命中與負載過濾在請求時基於 Redis 狀態執行，此處不模擬。",
+    "user_group_sticky_enabled_capped": "黏性已啟用（含每帳號活躍用戶上限）。實際 cap、命中、負載過濾均在請求時基於 Redis 狀態執行，此處不模擬。"
   }
 }

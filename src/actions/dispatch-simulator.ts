@@ -18,6 +18,7 @@ import { RateLimitService } from "@/lib/rate-limit";
 import { resolveSystemTimezone } from "@/lib/utils/timezone";
 import { isVendorTypeCircuitOpen } from "@/lib/vendor-type-circuit-breaker";
 import { findAllProvidersFresh } from "@/repository/provider";
+import { getStickyConfig } from "@/repository/provider-groups";
 import type {
   DispatchSimulatorEndpointStats,
   DispatchSimulatorInput,
@@ -82,6 +83,35 @@ async function getEndpointStats(
   } catch {
     return null;
   }
+}
+
+/**
+ * Render the user-group sticky config as a single human-readable note.
+ *
+ * Multi-group / no-group inputs produce a "skipped" note since V1 only applies
+ * sticky to single-group users. For a single group, fetches stickyEnabled,
+ * stickyTtlHours, and maxActiveUsersPerProvider via the cached repo helper.
+ *
+ * Note string is keyed for translation lookup on the frontend.
+ */
+async function buildUserGroupStickyConfigNote(groupTags: string[]): Promise<string> {
+  const groups = groupTags.map((tag) => tag.trim()).filter((tag) => tag.length > 0);
+  if (groups.length === 0) return "user_group_sticky_skipped_no_group";
+  if (groups.length > 1) return "user_group_sticky_skipped_multi_group";
+  const group = groups[0];
+  if (!group || group === PROVIDER_GROUP.ALL) return "user_group_sticky_skipped_no_group";
+
+  let cfg: Awaited<ReturnType<typeof getStickyConfig>>;
+  try {
+    cfg = await getStickyConfig(group);
+  } catch {
+    return "user_group_sticky_config_unavailable";
+  }
+  if (!cfg) return "user_group_sticky_skipped_unknown_group";
+  if (!cfg.enabled) return "user_group_sticky_disabled";
+  return cfg.cap == null
+    ? "user_group_sticky_enabled_uncapped"
+    : "user_group_sticky_enabled_capped";
 }
 
 function buildStep(
@@ -386,6 +416,20 @@ export async function simulateDispatchDecisionTree(
     selectedPriorityProviderIds.has(provider.id)
   );
 
+  // Step 8: Surface user-group sticky config (informational only — actual
+  // cap/load filtering happens at request time using live Redis state and
+  // is not simulated here).
+  const stickyNote = await buildUserGroupStickyConfigNote(input.groupTags);
+  steps.push({
+    stepName: "userGroupStickyConfig",
+    stepIndex: 8,
+    inputCount: currentProviders.length,
+    outputCount: currentProviders.length,
+    filteredOut: [],
+    surviving: currentProviders.map((provider) => buildProviderSnapshot(provider, groupFilter)),
+    note: stickyNote,
+  });
+
   const redirectedProviders = currentProviders.map((provider) =>
     buildProviderSnapshot(provider, groupFilter, {
       redirectedModel: normalizedModelName
@@ -402,7 +446,7 @@ export async function simulateDispatchDecisionTree(
   );
   steps.push({
     stepName: "modelRedirect",
-    stepIndex: 8,
+    stepIndex: 9,
     inputCount: currentProviders.length,
     outputCount: currentProviders.length,
     filteredOut: [],
@@ -423,7 +467,7 @@ export async function simulateDispatchDecisionTree(
   );
   steps.push({
     stepName: "endpointSummary",
-    stepIndex: 9,
+    stepIndex: 10,
     inputCount: currentProviders.length,
     outputCount: currentProviders.length,
     filteredOut: [],

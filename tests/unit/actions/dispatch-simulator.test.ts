@@ -178,6 +178,7 @@ describe("dispatch simulator", () => {
       "modelAllowlist",
       "healthAndLimits",
       "priorityTiers",
+      "userGroupStickyConfig",
       "modelRedirect",
       "endpointSummary",
     ]);
@@ -185,17 +186,19 @@ describe("dispatch simulator", () => {
     expect(result.steps[0].outputCount).toBe(4);
     expect(result.steps[1].outputCount).toBe(3);
     expect(result.steps[5].outputCount).toBe(2);
-    expect(result.steps[7].outputCount).toBe(1);
+    // After inserting userGroupStickyConfig at index 7, modelRedirect is now 8
+    // and endpointSummary is 9.
     expect(result.steps[8].outputCount).toBe(1);
+    expect(result.steps[9].outputCount).toBe(1);
     expect(result.priorityTiers).toHaveLength(2);
     expect(result.selectedPriority).toBe(0);
     expect(result.finalCandidateCount).toBe(1);
     expect(result.priorityTiers[0].providers[0].name).toBe("winner");
     expect(
-      result.steps[7].surviving.find((provider) => provider.name === "winner")?.redirectedModel
+      result.steps[8].surviving.find((provider) => provider.name === "winner")?.redirectedModel
     ).toBe("glm-4.6");
     expect(
-      result.steps[8].surviving.find((provider) => provider.name === "winner")?.endpointStats
+      result.steps[9].surviving.find((provider) => provider.name === "winner")?.endpointStats
     ).toEqual({
       total: 2,
       enabled: 2,

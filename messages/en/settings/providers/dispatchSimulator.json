@@ -40,6 +40,7 @@
     "modelAllowlist": "Model Allowlist",
     "healthAndLimits": "Circuit And Limits",
     "priorityTiers": "Priority Tiers",
+    "userGroupStickyConfig": "User-Group Sticky Config",
     "modelRedirect": "Model Redirect Preview",
     "endpointSummary": "Endpoint Summary"
   },
@@ -48,6 +49,13 @@
     "model_filter_skipped_for_resource_request": "The request has no model name, so allowlist filtering is skipped for resource-style requests.",
     "redirect_preview_skipped_for_resource_request": "No model name was provided, so redirect preview is skipped.",
     "redirects_apply_after_provider_selection": "Model redirects are evaluated after provider selection.",
-    "endpoint_status_does_not_change_provider_preselection": "Endpoint status is shown as downstream risk and does not currently change provider pre-selection."
+    "endpoint_status_does_not_change_provider_preselection": "Endpoint status is shown as downstream risk and does not currently change provider pre-selection.",
+    "user_group_sticky_skipped_no_group": "No single group selected; user-group sticky is skipped.",
+    "user_group_sticky_skipped_multi_group": "Multiple groups selected; V1 does not enable sticky for multi-group users — selection falls back to weighted random.",
+    "user_group_sticky_skipped_unknown_group": "The selected group does not exist; sticky config could not be loaded.",
+    "user_group_sticky_disabled": "Sticky is disabled for this group; selection still uses existing weight/priority logic.",
+    "user_group_sticky_config_unavailable": "Failed to read sticky config (DB/cache hiccup); selection falls back to existing logic.",
+    "user_group_sticky_enabled_uncapped": "Sticky enabled (no cap configured). Actual cap and load filtering run at request time using live Redis state and are not simulated here.",
+    "user_group_sticky_enabled_capped": "Sticky enabled (per-account active-user cap configured). Actual cap, hit, and load filtering all run at request time using live Redis state and are not simulated here."
   }
 }

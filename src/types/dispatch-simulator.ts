@@ -15,6 +15,7 @@ export type DispatchSimulatorStepName =
   | "modelAllowlist"
   | "healthAndLimits"
   | "priorityTiers"
+  | "userGroupStickyConfig"
   | "modelRedirect"
   | "endpointSummary";
 

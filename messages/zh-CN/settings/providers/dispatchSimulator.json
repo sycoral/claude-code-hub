@@ -40,6 +40,7 @@
     "modelAllowlist": "模型白名单",
     "healthAndLimits": "熔断与限额",
     "priorityTiers": "优先级分层",
+    "userGroupStickyConfig": "用户分组粘性配置",
     "modelRedirect": "模型重定向预览",
     "endpointSummary": "端点状态汇总"
   },
@@ -48,6 +49,13 @@
     "model_filter_skipped_for_resource_request": "当前请求没有模型名，按资源类请求逻辑跳过白名单过滤。",
     "redirect_preview_skipped_for_resource_request": "当前没有模型名，因此跳过重定向预览。",
     "redirects_apply_after_provider_selection": "模型重定向发生在供应商选定之后。",
-    "endpoint_status_does_not_change_provider_preselection": "端点状态仅作为下游风险提示，目前不会改变供应商预选结果。"
+    "endpoint_status_does_not_change_provider_preselection": "端点状态仅作为下游风险提示，目前不会改变供应商预选结果。",
+    "user_group_sticky_skipped_no_group": "未选定单一分组，跳过用户分组粘性。",
+    "user_group_sticky_skipped_multi_group": "选定了多个分组，V1 不对多组用户启用粘性，直接走加权随机。",
+    "user_group_sticky_skipped_unknown_group": "选定的分组不存在，无法读取粘性配置。",
+    "user_group_sticky_disabled": "该分组的用户粘性已关闭，调度仍按现有 weight/priority 进行。",
+    "user_group_sticky_config_unavailable": "读取粘性配置失败（DB/缓存异常），调度按现有逻辑兜底。",
+    "user_group_sticky_enabled_uncapped": "粘性已启用（未配置 cap）。实际命中和负载过滤在请求时基于 Redis 状态执行，此处不模拟。",
+    "user_group_sticky_enabled_capped": "粘性已启用（含每号活跃用户上限）。实际 cap、命中、负载过滤均在请求时基于 Redis 状态执行，此处不模拟。"
   }
 }

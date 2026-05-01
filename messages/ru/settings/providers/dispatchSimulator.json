@@ -40,6 +40,7 @@
     "modelAllowlist": "Allowlist моделей",
     "healthAndLimits": "Circuit и лимиты",
     "priorityTiers": "Слои приоритета",
+    "userGroupStickyConfig": "Привязка пользователя к группе",
     "modelRedirect": "Проверка redirect модели",
     "endpointSummary": "Сводка по эндпоинтам"
   },
@@ -48,6 +49,13 @@
     "model_filter_skipped_for_resource_request": "Имя модели не задано, поэтому allowlist пропускается для resource-подобного запроса.",
     "redirect_preview_skipped_for_resource_request": "Имя модели не задано, поэтому preview redirect пропущен.",
     "redirects_apply_after_provider_selection": "Redirect модели применяется после выбора провайдера.",
-    "endpoint_status_does_not_change_provider_preselection": "Статус эндпоинтов показывается как downstream-риск и пока не меняет предварительный выбор провайдера."
+    "endpoint_status_does_not_change_provider_preselection": "Статус эндпоинтов показывается как downstream-риск и пока не меняет предварительный выбор провайдера.",
+    "user_group_sticky_skipped_no_group": "Не выбрана единственная группа; user-group sticky пропущена.",
+    "user_group_sticky_skipped_multi_group": "Выбрано несколько групп. В V1 sticky не применяется к мульти-групповым пользователям — выбор идёт через существующий weighted random.",
+    "user_group_sticky_skipped_unknown_group": "Выбранная группа не существует; настройки sticky не загружены.",
+    "user_group_sticky_disabled": "Sticky отключена для этой группы; выбор по существующей логике weight/priority.",
+    "user_group_sticky_config_unavailable": "Не удалось прочитать настройки sticky (DB/кэш). Используется fallback на существующую логику.",
+    "user_group_sticky_enabled_uncapped": "Sticky включена (cap не задан). Реальные проверки попадания и фильтр нагрузки выполняются на запросе по состоянию Redis и здесь не моделируются.",
+    "user_group_sticky_enabled_capped": "Sticky включена (с лимитом активных пользователей на аккаунт). Реальные cap, попадание и фильтр нагрузки выполняются на запросе по состоянию Redis и здесь не моделируются."
   }
 }

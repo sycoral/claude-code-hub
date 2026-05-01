@@ -40,6 +40,7 @@
     "modelAllowlist": "モデル許可リスト",
     "healthAndLimits": "サーキットと上限",
     "priorityTiers": "優先度レイヤー",
+    "userGroupStickyConfig": "ユーザーグループ粘着設定",
     "modelRedirect": "モデルリダイレクト確認",
     "endpointSummary": "エンドポイント概要"
   },
@@ -48,6 +49,13 @@
     "model_filter_skipped_for_resource_request": "モデル名がないため、リソース系リクエストとして許可リスト判定をスキップします。",
     "redirect_preview_skipped_for_resource_request": "モデル名が未指定のため、リダイレクト確認をスキップします。",
     "redirects_apply_after_provider_selection": "モデルリダイレクトはプロバイダー選択後に評価されます。",
-    "endpoint_status_does_not_change_provider_preselection": "エンドポイント状態は下流リスクとして表示され、現時点ではプロバイダー事前選択には影響しません。"
+    "endpoint_status_does_not_change_provider_preselection": "エンドポイント状態は下流リスクとして表示され、現時点ではプロバイダー事前選択には影響しません。",
+    "user_group_sticky_skipped_no_group": "単一グループが選択されていないため、ユーザーグループ粘着をスキップします。",
+    "user_group_sticky_skipped_multi_group": "複数グループ選択中。V1 ではマルチグループユーザーに粘着を適用せず、既存の加重ランダムにフォールバックします。",
+    "user_group_sticky_skipped_unknown_group": "選択されたグループが存在しないため、粘着設定を読み込めません。",
+    "user_group_sticky_disabled": "このグループの粘着は無効です。既存の weight/priority ロジックで選択されます。",
+    "user_group_sticky_config_unavailable": "粘着設定の読み込みに失敗しました（DB/キャッシュ異常）。既存ロジックでフォールバックします。",
+    "user_group_sticky_enabled_uncapped": "粘着が有効（cap 未設定）。実際のヒットおよび負荷フィルタはリクエスト時に Redis の状態に基づいて実行されます（ここでは模擬しません）。",
+    "user_group_sticky_enabled_capped": "粘着が有効（アカウントごとのアクティブユーザー上限あり）。実際の cap、ヒット、負荷フィルタはすべてリクエスト時に Redis の状態に基づいて実行されます（ここでは模擬しません）。"
   }
 }
