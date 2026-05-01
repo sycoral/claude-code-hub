@@ -4,15 +4,24 @@ import { PROVIDER_GROUP } from "@/lib/constants/provider.constants";
 import { logger } from "@/lib/logger";
 import { RateLimitService } from "@/lib/rate-limit";
 import { SessionManager } from "@/lib/session-manager";
+import {
+  bindSticky,
+  clearSticky,
+  countActiveUsers,
+  getStickyProvider,
+  isUserCountedOn,
+  refreshStickyTTL,
+} from "@/lib/sticky/user-group-sticky";
 import { parseProviderGroups, resolveProviderGroupsWithDefault } from "@/lib/utils/provider-group";
 import { isProviderActiveNow } from "@/lib/utils/provider-schedule";
 import { resolveSystemTimezone } from "@/lib/utils/timezone";
 import { isVendorTypeCircuitOpen } from "@/lib/vendor-type-circuit-breaker";
 import { findAllProviders, findProviderById } from "@/repository/provider";
-import { getGroupCostMultiplier } from "@/repository/provider-groups";
+import { getGroupCostMultiplier, getStickyConfig } from "@/repository/provider-groups";
 import type { ProviderChainItem } from "@/types/message";
 import type { Provider } from "@/types/provider";
 import { isClientAllowedDetailed } from "./client-detector";
+import { GroupCapacityFullError } from "./errors";
 import type { ClientFormat } from "./format-mapper";
 import { getVerboseProviderErrorCached } from "./provider-selector-settings-cache";
 import { ProxyResponses } from "./responses";
@@ -42,6 +51,62 @@ function getEffectiveProviderGroup(session?: ProxySession): string | null {
     return user.providerGroup || PROVIDER_GROUP.DEFAULT;
   }
   return PROVIDER_GROUP.DEFAULT;
+}
+
+/**
+ * Returns the single group name to use for user-group sticky. Returns null
+ * when the user has multiple groups, no group, or no auth state — those cases
+ * skip the sticky layer entirely (V1 scope).
+ */
+function getSingleGroupForSticky(session?: ProxySession): string | null {
+  const raw = getEffectiveProviderGroup(session);
+  if (!raw) return null;
+  const groups = parseProviderGroups(raw);
+  if (groups.length !== 1) return null;
+  if (groups[0] === PROVIDER_GROUP.ALL) return null;
+  return groups[0];
+}
+
+function getStickyUserId(session?: ProxySession): number | null {
+  const id = session?.authState?.user?.id;
+  return typeof id === "number" ? id : null;
+}
+
+/**
+ * Refresh or write the user-group sticky binding for a successful request.
+ * Called once after the selector locks in `session.provider`. No-op when the
+ * group is multi/none, the group's stickyEnabled is false, or session lacks
+ * a user id — same gates the selector itself uses.
+ */
+async function maintainUserGroupSticky(session?: ProxySession): Promise<void> {
+  const group = getSingleGroupForSticky(session);
+  if (!group) return;
+  const uid = getStickyUserId(session);
+  if (uid == null) return;
+  const provider = session?.provider;
+  if (!provider) return;
+
+  let config: Awaited<ReturnType<typeof getStickyConfig>>;
+  try {
+    config = await getStickyConfig(group);
+  } catch (error) {
+    logger.warn("[ProviderSelector] Failed to load sticky config", {
+      group,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
+  if (!config?.enabled) return;
+
+  const existing = await getStickyProvider(uid, group);
+  if (existing === provider.id) {
+    await refreshStickyTTL(uid, group, provider.id, config.ttlSec);
+    return;
+  }
+  if (existing != null) {
+    await clearSticky(uid, group, existing);
+  }
+  await bindSticky(uid, group, provider.id, config.ttlSec);
 }
 
 /**
@@ -176,6 +241,41 @@ export class ProxyProviderResolver {
       });
     }
 
+    // === 用户分组粘性复用（V1，session 复用未命中时尝试）===
+    if (!session.provider) {
+      const stickyProvider = await ProxyProviderResolver.findUserGroupReusable(session);
+      if (stickyProvider) {
+        session.setProvider(stickyProvider);
+        session.addProviderToChain(stickyProvider, {
+          reason: "user_group_sticky_reuse",
+          selectionMethod: "user_group_sticky",
+          circuitState: getCircuitState(stickyProvider.id),
+          decisionContext: {
+            totalProviders: 0,
+            enabledProviders: 0,
+            targetType: stickyProvider.providerType as NonNullable<
+              ProviderChainItem["decisionContext"]
+            >["targetType"],
+            requestedModel: session.getOriginalModel() || "",
+            groupFilterApplied: false,
+            beforeHealthCheck: 0,
+            afterHealthCheck: 0,
+            priorityLevels: [stickyProvider.priority || 0],
+            selectedPriority: stickyProvider.priority || 0,
+            candidatesAtPriority: [
+              {
+                id: stickyProvider.id,
+                name: stickyProvider.name,
+                weight: stickyProvider.weight,
+                costMultiplier: stickyProvider.costMultiplier,
+              },
+            ],
+            sessionId: session.sessionId || undefined,
+          },
+        });
+      }
+    }
+
     // === 首次选择或重试 ===
     if (!session.provider) {
       const { provider, context } = await ProxyProviderResolver.pickRandomProvider(
@@ -184,6 +284,12 @@ export class ProxyProviderResolver {
       );
       session.setProvider(provider);
       session.setLastSelectionContext(context); // 保存用于后续记录
+    }
+
+    // 写入 / 续期用户分组粘性绑定（与 sticky_enabled / 单组用户 / Redis 健康同启同关）。
+    // 即使是 session 复用 / sticky 复用 / 新选择，活跃用户都应续期；这是保持组内负载均衡判定准确的前提。
+    if (session.provider) {
+      await maintainUserGroupSticky(session);
     }
 
     // === Resolve group cost multiplier ===
@@ -713,6 +819,98 @@ export class ProxyProviderResolver {
     return provider;
   }
 
+  /**
+   * 查找可复用的供应商（基于用户在组内的粘性绑定）
+   *
+   * V1 仅对单组用户启用。复用 findReusable 的同类合法性校验：
+   *   - 硬失败（provider 被禁用 / 退出复用 / 越组）→ 清绑定，return null
+   *   - 软失败（熔断 / 限额 / 调度窗口 / 格式或模型不兼容）→ 保留绑定，return null
+   * 命中且通过校验 → return provider；选中后由 maintainUserGroupSticky 续期 TTL。
+   */
+  private static async findUserGroupReusable(session: ProxySession): Promise<Provider | null> {
+    const group = getSingleGroupForSticky(session);
+    if (!group) return null;
+    const uid = getStickyUserId(session);
+    if (uid == null) return null;
+
+    let config: Awaited<ReturnType<typeof getStickyConfig>>;
+    try {
+      config = await getStickyConfig(group);
+    } catch {
+      return null;
+    }
+    if (!config?.enabled) return null;
+
+    const providerId = await getStickyProvider(uid, group);
+    if (!providerId) return null;
+
+    const provider = await findProviderById(providerId);
+
+    // Hard failures: drop binding and re-pick.
+    if (!provider?.isEnabled) {
+      await clearSticky(uid, group, providerId);
+      return null;
+    }
+    if (provider.disableSessionReuse) {
+      await clearSticky(uid, group, providerId);
+      return null;
+    }
+    const effectiveGroup = getEffectiveProviderGroup(session);
+    if (effectiveGroup && !checkProviderGroupMatch(provider.groupTag, effectiveGroup)) {
+      await clearSticky(uid, group, providerId);
+      return null;
+    }
+
+    // Soft failures: keep binding, fall through THIS request only.
+    if (await isCircuitOpen(provider.id)) return null;
+    if (
+      provider.providerVendorId &&
+      provider.providerVendorId > 0 &&
+      (await isVendorTypeCircuitOpen(provider.providerVendorId, provider.providerType))
+    ) {
+      return null;
+    }
+    const tz = await resolveSystemTimezone();
+    if (!isProviderActiveNow(provider.activeTimeStart, provider.activeTimeEnd, tz)) {
+      return null;
+    }
+    const costCheck = await RateLimitService.checkCostLimitsWithLease(provider.id, "provider", {
+      limit_5h_usd: provider.limit5hUsd,
+      limit_5h_reset_mode: provider.limit5hResetMode,
+      limit_daily_usd: provider.limitDailyUsd,
+      daily_reset_mode: provider.dailyResetMode,
+      daily_reset_time: provider.dailyResetTime,
+      limit_weekly_usd: provider.limitWeeklyUsd,
+      limit_monthly_usd: provider.limitMonthlyUsd,
+    });
+    if (!costCheck.allowed) return null;
+    const totalCheck = await RateLimitService.checkTotalCostLimit(
+      provider.id,
+      "provider",
+      provider.limitTotalUsd,
+      { resetAt: provider.totalCostResetAt }
+    );
+    if (!totalCheck.allowed) return null;
+    if (
+      session.originalFormat &&
+      !checkFormatProviderTypeCompatibility(session.originalFormat, provider.providerType)
+    ) {
+      return null;
+    }
+    const requestedModel = session.getOriginalModel();
+    if (requestedModel && !providerSupportsModel(provider, requestedModel)) {
+      return null;
+    }
+
+    logger.info("ProviderSelector: Reusing user-group sticky provider", {
+      uid,
+      group,
+      providerId: provider.id,
+      providerName: provider.name,
+    });
+    return provider;
+  }
+
   private static async pickRandomProvider(
     session?: ProxySession,
     excludeIds: number[] = [] // 排除已失败的供应商
@@ -982,7 +1180,7 @@ export class ProxyProviderResolver {
     }
 
     // Step 5: 优先级分层（只选择最高优先级的供应商）
-    const topPriorityProviders = ProxyProviderResolver.selectTopPriority(
+    let topPriorityProviders = ProxyProviderResolver.selectTopPriority(
       healthyProviders,
       effectiveGroupPick
     );
@@ -999,6 +1197,50 @@ export class ProxyProviderResolver {
         ProxyProviderResolver.resolveEffectivePriority(p, effectiveGroupPick ?? null)
       )
     );
+
+    // Step 5.5: User-group sticky cap + load filter (single-group users only).
+    // Runs after the min-priority tier so weight/priority semantics are preserved.
+    const stickyGroup = getSingleGroupForSticky(session);
+    const stickyUid = getStickyUserId(session);
+    if (stickyGroup && stickyUid != null && topPriorityProviders.length > 0) {
+      const stickyCfg = await getStickyConfig(stickyGroup).catch(() => null);
+      if (stickyCfg?.enabled) {
+        // Cap filter: skip providers already at cap unless user is already counted there.
+        if (stickyCfg.cap != null) {
+          const eligible: Provider[] = [];
+          for (const p of topPriorityProviders) {
+            const alreadyOn = await isUserCountedOn(p.id, stickyGroup, stickyUid);
+            if (alreadyOn) {
+              eligible.push(p);
+              continue;
+            }
+            const count = await countActiveUsers(p.id, stickyGroup);
+            if (count < stickyCfg.cap) {
+              eligible.push(p);
+            }
+          }
+          if (eligible.length === 0) {
+            logger.warn("ProviderSelector: All providers in group at user cap", {
+              group: stickyGroup,
+              cap: stickyCfg.cap,
+              candidates: topPriorityProviders.map((p) => p.name),
+            });
+            throw new GroupCapacityFullError(stickyGroup);
+          }
+          topPriorityProviders = eligible;
+        }
+
+        // Load filter: keep only the least-loaded subset, then existing
+        // weight/priority resolves ties. Skipped when only one candidate remains.
+        if (topPriorityProviders.length > 1) {
+          const counts = await Promise.all(
+            topPriorityProviders.map((p) => countActiveUsers(p.id, stickyGroup))
+          );
+          const minCount = Math.min(...counts);
+          topPriorityProviders = topPriorityProviders.filter((_, i) => counts[i] === minCount);
+        }
+      }
+    }
 
     // Step 6: 成本排序 + 加权选择 + 计算概率
     const totalWeight = topPriorityProviders.reduce((sum, p) => sum + p.weight, 0);

@@ -43,14 +43,16 @@ export interface ProviderChainItem {
     | "hedge_launched" // Hedge 备选供应商已启动（信息性记录，不算实际请求）
     | "hedge_winner" // 该供应商赢得 Hedge 竞速（最先收到首字节）
     | "hedge_loser_cancelled" // 该供应商输掉 Hedge 竞速，请求被取消
-    | "client_abort"; // 客户端在响应完成前断开连接
+    | "client_abort" // 客户端在响应完成前断开连接
+    | "user_group_sticky_reuse"; // 用户在分组内的粘性绑定命中
 
   // === 选择方法（细化） ===
   selectionMethod?:
     | "session_reuse" // 会话复用
     | "weighted_random" // 加权随机
     | "group_filtered" // 分组筛选后随机
-    | "fail_open_fallback"; // Fail Open 降级
+    | "fail_open_fallback" // Fail Open 降级
+    | "user_group_sticky"; // 用户在分组内的粘性绑定（V1）
 
   // 供应商配置（决策依据）
   priority?: number;

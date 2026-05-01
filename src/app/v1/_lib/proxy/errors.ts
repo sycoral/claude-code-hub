@@ -546,6 +546,29 @@ export class ProxyError extends Error {
 }
 
 /**
+ * Thrown when every provider in a group is at its active-user cap and the
+ * requesting user is not already counted on any of them. Surfaces as HTTP 503
+ * with a recognizable message so clients can distinguish capacity-rejection
+ * from upstream failures.
+ *
+ * Extends ProxyError so the existing error-handler / decision-chain logging
+ * picks it up without a new branch.
+ */
+export class GroupCapacityFullError extends ProxyError {
+  public readonly group: string;
+
+  constructor(group: string) {
+    super(`group_capacity_full: ${group}`, 503);
+    this.name = "GroupCapacityFullError";
+    this.group = group;
+  }
+}
+
+export function isGroupCapacityFullError(error: unknown): error is GroupCapacityFullError {
+  return error instanceof GroupCapacityFullError;
+}
+
+/**
  * 错误分类：区分供应商错误和系统错误
  */
 export enum ErrorCategory {

@@ -576,12 +576,14 @@ export class ProxySession {
         | "hedge_launched" // Hedge 备选供应商已启动（信息性记录）
         | "hedge_winner" // 该供应商赢得 Hedge 竞速（最先收到首字节）
         | "hedge_loser_cancelled" // 该供应商输掉 Hedge 竞速，请求被取消
-        | "client_abort"; // 客户端在响应完成前断开连接
+        | "client_abort" // 客户端在响应完成前断开连接
+        | "user_group_sticky_reuse"; // 用户在分组内的粘性绑定命中
       selectionMethod?:
         | "session_reuse"
         | "weighted_random"
         | "group_filtered"
-        | "fail_open_fallback";
+        | "fail_open_fallback"
+        | "user_group_sticky";
       circuitState?: "closed" | "open" | "half-open";
       attemptNumber?: number;
       errorMessage?: string; // 错误信息（失败时记录）
