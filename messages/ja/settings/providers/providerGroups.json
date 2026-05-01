@@ -42,5 +42,23 @@
   "groupDescriptionLabel": "グループ説明",
   "noDescription": "説明を追加",
   "descriptionTooLong": "説明は500文字以内で入力してください",
-  "openProviderEditor": "プロバイダーを編集"
+  "openProviderEditor": "プロバイダーを編集",
+  "invalidStickyTtl": "粘着時間は 1-720（時間）の整数で指定してください",
+  "invalidMaxActiveUsers": "アカウントあたりの最大アクティブユーザー数は 0 より大きい整数で指定してください",
+  "advanced": {
+    "title": "詳細設定（ユーザー粘着 + 容量）",
+    "stickyEnabled": {
+      "label": "ユーザー粘着を有効化",
+      "description": "同一ユーザーをセッションを跨いで同じアカウントに固定します。OFF の場合は既存の weight/priority 選択にフォールバック"
+    },
+    "stickyTtlHours": {
+      "label": "粘着時間（時間）",
+      "helper": "1-720（最大 30 日）。よくある値：24=1 日、168=7 日、720=30 日"
+    },
+    "maxActiveUsers": {
+      "label": "アカウントあたりの最大アクティブユーザー数",
+      "placeholder": "空欄＝無制限",
+      "helper": "グループ内の各アカウントが同時に受け持つアクティブユーザー数の上限。超過すると他アカウントに振り分け、全アカウントが満杯なら 503 を返します"
+    }
+  }
 }

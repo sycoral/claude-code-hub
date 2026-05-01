@@ -42,5 +42,23 @@
   "groupDescriptionLabel": "分组描述",
   "noDescription": "添加描述",
   "descriptionTooLong": "描述不能超过500字符",
-  "openProviderEditor": "编辑供应商"
+  "openProviderEditor": "编辑供应商",
+  "invalidStickyTtl": "粘性时长必须是 1-720（小时）之间的整数",
+  "invalidMaxActiveUsers": "每账号最多活跃用户数必须是大于 0 的整数",
+  "advanced": {
+    "title": "高级设置（用户粘性 + 容量）",
+    "stickyEnabled": {
+      "label": "开启用户粘性",
+      "description": "同一用户跨 session 固定到组内同一个账号；关闭后回退到现有的 weight/priority 选号"
+    },
+    "stickyTtlHours": {
+      "label": "粘性时长（小时）",
+      "helper": "1-720（30 天上限）。常用：24=1 天、168=7 天、720=30 天"
+    },
+    "maxActiveUsers": {
+      "label": "每账号最多活跃用户数",
+      "placeholder": "留空表示不限",
+      "helper": "组内每个账号同时承载的活跃用户上限；超限会落到组内其他账号；全组都满则返回 503"
+    }
+  }
 }

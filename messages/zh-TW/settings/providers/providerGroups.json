@@ -42,5 +42,23 @@
   "groupDescriptionLabel": "分組描述",
   "noDescription": "新增描述",
   "descriptionTooLong": "描述不能超過500個字元",
-  "openProviderEditor": "編輯供應商"
+  "openProviderEditor": "編輯供應商",
+  "invalidStickyTtl": "黏性時長必須是 1-720（小時）之間的整數",
+  "invalidMaxActiveUsers": "每帳號最多活躍用戶數必須是大於 0 的整數",
+  "advanced": {
+    "title": "進階設定（用戶黏性 + 容量）",
+    "stickyEnabled": {
+      "label": "啟用用戶黏性",
+      "description": "同一用戶跨 session 固定到組內同一個帳號；關閉後回退到現有的 weight/priority 選號"
+    },
+    "stickyTtlHours": {
+      "label": "黏性時長（小時）",
+      "helper": "1-720（30 天上限）。常用：24=1 天、168=7 天、720=30 天"
+    },
+    "maxActiveUsers": {
+      "label": "每帳號最多活躍用戶數",
+      "placeholder": "留空表示不限",
+      "helper": "組內每個帳號同時承載的活躍用戶上限；超限會落到組內其他帳號；全組都滿則回傳 503"
+    }
+  }
 }

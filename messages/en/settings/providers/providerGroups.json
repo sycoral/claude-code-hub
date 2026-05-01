@@ -42,5 +42,23 @@
   "groupDescriptionLabel": "Group Description",
   "noDescription": "Add description",
   "descriptionTooLong": "Description must be 500 characters or fewer",
-  "openProviderEditor": "Edit Provider"
+  "openProviderEditor": "Edit Provider",
+  "invalidStickyTtl": "Sticky TTL must be an integer between 1 and 720 hours",
+  "invalidMaxActiveUsers": "Max active users must be an integer greater than 0",
+  "advanced": {
+    "title": "Advanced (User Stickiness + Capacity)",
+    "stickyEnabled": {
+      "label": "Enable User Stickiness",
+      "description": "Pin each user to the same account across sessions; when off, falls back to existing weight/priority selection"
+    },
+    "stickyTtlHours": {
+      "label": "Sticky TTL (hours)",
+      "helper": "1-720 (30 days max). Common: 24=1 day, 168=7 days, 720=30 days"
+    },
+    "maxActiveUsers": {
+      "label": "Max Active Users per Account",
+      "placeholder": "Empty = unlimited",
+      "helper": "Cap on concurrent active users per account in this group; exceeding sends new users to other accounts; if all are full, returns 503"
+    }
+  }
 }

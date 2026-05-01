@@ -7,6 +7,9 @@ export interface ProviderGroup {
   name: string;
   costMultiplier: number;
   description: string | null;
+  stickyEnabled: boolean;
+  stickyTtlHours: number;
+  maxActiveUsersPerProvider: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -18,6 +21,9 @@ export interface CreateProviderGroupInput {
   name: string;
   costMultiplier?: number;
   description?: string | null;
+  stickyEnabled?: boolean;
+  stickyTtlHours?: number;
+  maxActiveUsersPerProvider?: number | null;
 }
 
 /**
@@ -26,4 +32,17 @@ export interface CreateProviderGroupInput {
 export interface UpdateProviderGroupInput {
   costMultiplier?: number;
   description?: string | null;
+  stickyEnabled?: boolean;
+  stickyTtlHours?: number;
+  maxActiveUsersPerProvider?: number | null;
+}
+
+/**
+ * Sticky configuration for one group, returned by getStickyConfig().
+ * Used by the provider selector to gate sticky / cap / load-balancing logic.
+ */
+export interface ProviderGroupStickyConfig {
+  enabled: boolean;
+  ttlSec: number;
+  cap: number | null;
 }

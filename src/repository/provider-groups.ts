@@ -8,6 +8,7 @@ import { parseProviderGroups } from "@/lib/utils/provider-group";
 import type {
   CreateProviderGroupInput,
   ProviderGroup,
+  ProviderGroupStickyConfig,
   UpdateProviderGroupInput,
 } from "@/types/provider-group";
 
@@ -26,6 +27,9 @@ function toProviderGroup(row: ProviderGroupRow): ProviderGroup {
     name: row.name,
     costMultiplier: Number(row.costMultiplier),
     description: row.description ?? null,
+    stickyEnabled: row.stickyEnabled,
+    stickyTtlHours: row.stickyTtlHours,
+    maxActiveUsersPerProvider: row.maxActiveUsersPerProvider ?? null,
     createdAt: row.createdAt!,
     updatedAt: row.updatedAt!,
   };
@@ -44,12 +48,20 @@ interface CacheEntry {
 
 const multiplierCache = new Map<string, CacheEntry>();
 
+interface StickyCacheEntry {
+  value: ProviderGroupStickyConfig;
+  expiresAt: number;
+}
+
+const stickyConfigCache = new Map<string, StickyCacheEntry>();
+
 /**
- * Invalidate the in-memory cost multiplier cache.
+ * Invalidate the in-memory caches for cost multiplier and sticky config.
  * Call this after any mutation (create / update / delete) to provider groups.
  */
 export function invalidateGroupMultiplierCache(): void {
   multiplierCache.clear();
+  stickyConfigCache.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -114,6 +126,11 @@ export async function createProviderGroup(input: CreateProviderGroupInput): Prom
       name: input.name,
       costMultiplier: input.costMultiplier?.toString() ?? "1.0",
       description: input.description ?? null,
+      ...(input.stickyEnabled !== undefined && { stickyEnabled: input.stickyEnabled }),
+      ...(input.stickyTtlHours !== undefined && { stickyTtlHours: input.stickyTtlHours }),
+      ...(input.maxActiveUsersPerProvider !== undefined && {
+        maxActiveUsersPerProvider: input.maxActiveUsersPerProvider,
+      }),
     })
     .returning();
 
@@ -139,6 +156,15 @@ export async function updateProviderGroup(
   }
   if (input.description !== undefined) {
     setData.description = input.description;
+  }
+  if (input.stickyEnabled !== undefined) {
+    setData.stickyEnabled = input.stickyEnabled;
+  }
+  if (input.stickyTtlHours !== undefined) {
+    setData.stickyTtlHours = input.stickyTtlHours;
+  }
+  if (input.maxActiveUsersPerProvider !== undefined) {
+    setData.maxActiveUsersPerProvider = input.maxActiveUsersPerProvider;
   }
 
   const [row] = await executor
@@ -291,4 +317,54 @@ export async function getGroupCostMultiplier(rawGroupString: string): Promise<nu
   }
 
   return 1.0;
+}
+
+/**
+ * Return the sticky configuration for a single group name.
+ *
+ * Hot-path: called by the provider selector on every request when the user
+ * has a single-group tag. Cached in-memory with 60s TTL, invalidated on any
+ * group mutation via invalidateGroupMultiplierCache().
+ *
+ * Returns null when the group does not exist (caller should treat as "no
+ * sticky" — fall back to existing weight/priority selection).
+ */
+export async function getStickyConfig(
+  groupName: string
+): Promise<ProviderGroupStickyConfig | null> {
+  if (!groupName) return null;
+
+  const now = Date.now();
+  const cached = stickyConfigCache.get(groupName);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+  if (cached) {
+    stickyConfigCache.delete(groupName);
+  }
+
+  const [row] = await db
+    .select({
+      stickyEnabled: providerGroups.stickyEnabled,
+      stickyTtlHours: providerGroups.stickyTtlHours,
+      maxActiveUsersPerProvider: providerGroups.maxActiveUsersPerProvider,
+    })
+    .from(providerGroups)
+    .where(eq(providerGroups.name, groupName))
+    .limit(1);
+
+  if (!row) return null;
+
+  const value: ProviderGroupStickyConfig = {
+    enabled: row.stickyEnabled,
+    ttlSec: row.stickyTtlHours * 3600,
+    cap: row.maxActiveUsersPerProvider ?? null,
+  };
+
+  stickyConfigCache.set(groupName, {
+    value,
+    expiresAt: now + CACHE_TTL_MS,
+  });
+
+  return value;
 }

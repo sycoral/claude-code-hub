@@ -38,6 +38,7 @@ import {
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -62,6 +63,9 @@ interface GroupFormState {
   name: string;
   costMultiplier: string;
   description: string;
+  stickyEnabled: boolean;
+  stickyTtlHours: string;
+  maxActiveUsersPerProvider: string;
 }
 
 interface ProviderGroupTabProps {
@@ -74,6 +78,9 @@ const INITIAL_FORM: GroupFormState = {
   name: "",
   costMultiplier: "1.0",
   description: "",
+  stickyEnabled: false,
+  stickyTtlHours: "168",
+  maxActiveUsersPerProvider: "",
 };
 
 function getProviderGroupDescriptionNote(description: string | null | undefined): string {
@@ -135,6 +142,10 @@ export function ProviderGroupTab({
       name: group.name,
       costMultiplier: String(group.costMultiplier),
       description: getProviderGroupDescriptionNote(group.description),
+      stickyEnabled: group.stickyEnabled,
+      stickyTtlHours: String(group.stickyTtlHours),
+      maxActiveUsersPerProvider:
+        group.maxActiveUsersPerProvider != null ? String(group.maxActiveUsersPerProvider) : "",
     });
     setDialogOpen(true);
   }, []);
@@ -156,6 +167,10 @@ export function ProviderGroupTab({
           return t("invalidMultiplier");
         case "DESCRIPTION_TOO_LONG":
           return t("descriptionTooLong");
+        case "INVALID_STICKY_TTL":
+          return t("invalidStickyTtl");
+        case "INVALID_MAX_ACTIVE_USERS":
+          return t("invalidMaxActiveUsers");
         default:
           return fallback;
       }
@@ -170,6 +185,9 @@ export function ProviderGroupTab({
         costMultiplier?: number;
         description?: string | null;
         descriptionNote?: string | null;
+        stickyEnabled?: boolean;
+        stickyTtlHours?: number;
+        maxActiveUsersPerProvider?: number | null;
       }
     ): Promise<boolean> => {
       const result = await updateProviderGroup(groupId, patch);
@@ -191,6 +209,23 @@ export function ProviderGroupTab({
       return;
     }
 
+    const stickyTtlHours = Number.parseInt(form.stickyTtlHours, 10);
+    if (!Number.isInteger(stickyTtlHours) || stickyTtlHours < 1 || stickyTtlHours > 720) {
+      toast.error(t("invalidStickyTtl"));
+      return;
+    }
+
+    let maxActiveUsers: number | null = null;
+    const rawMax = form.maxActiveUsersPerProvider.trim();
+    if (rawMax) {
+      const parsed = Number.parseInt(rawMax, 10);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        toast.error(t("invalidMaxActiveUsers"));
+        return;
+      }
+      maxActiveUsers = parsed;
+    }
+
     const trimmedName = form.name.trim();
     const trimmedDescription = form.description.trim();
     if (!editingGroup && !trimmedName) {
@@ -207,6 +242,9 @@ export function ProviderGroupTab({
         const ok = await saveGroupPatch(editingGroup.id, {
           costMultiplier,
           descriptionNote: trimmedDescription || null,
+          stickyEnabled: form.stickyEnabled,
+          stickyTtlHours,
+          maxActiveUsersPerProvider: maxActiveUsers,
         });
         if (ok) {
           closeDialog();
@@ -218,6 +256,9 @@ export function ProviderGroupTab({
         name: trimmedName,
         costMultiplier,
         description: trimmedDescription || undefined,
+        stickyEnabled: form.stickyEnabled,
+        stickyTtlHours,
+        maxActiveUsersPerProvider: maxActiveUsers,
       });
       if (result.ok) {
         toast.success(t("createSuccess"));
@@ -484,6 +525,71 @@ export function ProviderGroupTab({
                 onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder={t("descriptionPlaceholder")}
               />
+            </div>
+
+            <div className="border-t pt-4 space-y-3">
+              <div className="text-sm font-semibold">{t("advanced.title")}</div>
+
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-0.5">
+                  <label htmlFor="group-sticky-enabled" className="text-sm font-medium">
+                    {t("advanced.stickyEnabled.label")}
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {t("advanced.stickyEnabled.description")}
+                  </p>
+                </div>
+                <Switch
+                  id="group-sticky-enabled"
+                  checked={form.stickyEnabled}
+                  onCheckedChange={(checked) =>
+                    setForm((prev) => ({ ...prev, stickyEnabled: checked }))
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="group-sticky-ttl" className="text-sm font-medium">
+                  {t("advanced.stickyTtlHours.label")}
+                </label>
+                <Input
+                  id="group-sticky-ttl"
+                  type="number"
+                  min={1}
+                  max={720}
+                  step={1}
+                  value={form.stickyTtlHours}
+                  onChange={(e) => setForm((prev) => ({ ...prev, stickyTtlHours: e.target.value }))}
+                  disabled={!form.stickyEnabled}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("advanced.stickyTtlHours.helper")}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="group-max-active-users" className="text-sm font-medium">
+                  {t("advanced.maxActiveUsers.label")}
+                </label>
+                <Input
+                  id="group-max-active-users"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={form.maxActiveUsersPerProvider}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      maxActiveUsersPerProvider: e.target.value,
+                    }))
+                  }
+                  placeholder={t("advanced.maxActiveUsers.placeholder")}
+                  disabled={!form.stickyEnabled}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("advanced.maxActiveUsers.helper")}
+                </p>
+              </div>
             </div>
           </div>
 

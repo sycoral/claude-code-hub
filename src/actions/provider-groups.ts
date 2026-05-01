@@ -72,6 +72,38 @@ export async function getProviderGroups(): Promise<ActionResult<ProviderGroupWit
   }
 }
 
+const STICKY_TTL_HOURS_MIN = 1;
+const STICKY_TTL_HOURS_MAX = 720; // 30 days
+
+function validateStickyFields(
+  input: {
+    stickyEnabled?: boolean;
+    stickyTtlHours?: number;
+    maxActiveUsersPerProvider?: number | null;
+  },
+  t: (key: string) => string
+): { ok: false; error: string; errorCode: string } | { ok: true } {
+  if (input.stickyTtlHours !== undefined) {
+    if (
+      !Number.isInteger(input.stickyTtlHours) ||
+      input.stickyTtlHours < STICKY_TTL_HOURS_MIN ||
+      input.stickyTtlHours > STICKY_TTL_HOURS_MAX
+    ) {
+      return { ok: false, error: t("invalidStickyTtl"), errorCode: "INVALID_STICKY_TTL" };
+    }
+  }
+  if (input.maxActiveUsersPerProvider !== undefined && input.maxActiveUsersPerProvider !== null) {
+    if (!Number.isInteger(input.maxActiveUsersPerProvider) || input.maxActiveUsersPerProvider < 1) {
+      return {
+        ok: false,
+        error: t("invalidMaxActiveUsers"),
+        errorCode: "INVALID_MAX_ACTIVE_USERS",
+      };
+    }
+  }
+  return { ok: true };
+}
+
 /**
  * Create a new provider group.
  * Admin-only. Validates name is non-empty and not duplicate, costMultiplier >= 0.
@@ -80,6 +112,9 @@ export async function createProviderGroup(input: {
   name: string;
   costMultiplier?: number;
   description?: string;
+  stickyEnabled?: boolean;
+  stickyTtlHours?: number;
+  maxActiveUsersPerProvider?: number | null;
 }): Promise<ActionResult<ProviderGroup>> {
   const t = await getTranslations("settings.providers.providerGroups");
   const tError = await getTranslations("errors");
@@ -123,10 +158,18 @@ export async function createProviderGroup(input: {
       };
     }
 
+    const stickyValidation = validateStickyFields(input, t);
+    if (!stickyValidation.ok) {
+      return stickyValidation;
+    }
+
     const group = await repoCreateProviderGroup({
       name,
       costMultiplier: input.costMultiplier,
       description: input.description ?? null,
+      stickyEnabled: input.stickyEnabled,
+      stickyTtlHours: input.stickyTtlHours,
+      maxActiveUsersPerProvider: input.maxActiveUsersPerProvider,
     });
 
     emitActionAudit({
@@ -140,6 +183,9 @@ export async function createProviderGroup(input: {
         name: group.name,
         costMultiplier: group.costMultiplier,
         description: group.description,
+        stickyEnabled: group.stickyEnabled,
+        stickyTtlHours: group.stickyTtlHours,
+        maxActiveUsersPerProvider: group.maxActiveUsersPerProvider,
       },
       success: true,
     });
@@ -164,7 +210,14 @@ export async function createProviderGroup(input: {
  */
 export async function updateProviderGroup(
   id: number,
-  input: { costMultiplier?: number; description?: string | null; descriptionNote?: string | null }
+  input: {
+    costMultiplier?: number;
+    description?: string | null;
+    descriptionNote?: string | null;
+    stickyEnabled?: boolean;
+    stickyTtlHours?: number;
+    maxActiveUsersPerProvider?: number | null;
+  }
 ): Promise<ActionResult<ProviderGroup>> {
   const t = await getTranslations("settings.providers.providerGroups");
   const tError = await getTranslations("errors");
@@ -201,9 +254,17 @@ export async function updateProviderGroup(
       };
     }
 
+    const stickyValidation = validateStickyFields(input, t);
+    if (!stickyValidation.ok) {
+      return stickyValidation;
+    }
+
     const updated = await repoUpdateProviderGroup(id, {
       costMultiplier: input.costMultiplier,
       description: nextDescription,
+      stickyEnabled: input.stickyEnabled,
+      stickyTtlHours: input.stickyTtlHours,
+      maxActiveUsersPerProvider: input.maxActiveUsersPerProvider,
     });
 
     if (!updated) {
@@ -222,6 +283,9 @@ export async function updateProviderGroup(
         name: updated.name,
         costMultiplier: updated.costMultiplier,
         description: updated.description,
+        stickyEnabled: updated.stickyEnabled,
+        stickyTtlHours: updated.stickyTtlHours,
+        maxActiveUsersPerProvider: updated.maxActiveUsersPerProvider,
       },
       success: true,
     });

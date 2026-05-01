@@ -174,6 +174,11 @@ export const providerGroups = pgTable('provider_groups', {
   name: varchar('name', { length: 200 }).notNull().unique(),
   costMultiplier: numeric('cost_multiplier', { precision: 10, scale: 4 }).notNull().default('1.0'),
   description: text('description'),
+  // User-group sticky + per-provider active-user cap (V1, all-Redis state).
+  // Defaults keep behavior identical to pre-feature for existing groups.
+  stickyEnabled: boolean('sticky_enabled').notNull().default(false),
+  stickyTtlHours: integer('sticky_ttl_hours').notNull().default(168),
+  maxActiveUsersPerProvider: integer('max_active_users_per_provider'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
