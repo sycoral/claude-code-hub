@@ -5,6 +5,7 @@ import { conversationAuditLog } from "@/drizzle/audit-schema";
 import { db } from "@/drizzle/db";
 import { AuditFileStore } from "@/lib/audit/audit-file-store";
 import { getSession } from "@/lib/auth";
+import { SYSTEM_WRAPPER_TEXT_PATTERN } from "@/lib/config/audit-filters";
 import { getEnvConfig } from "@/lib/config/env.schema";
 import { logger } from "@/lib/logger";
 import type { ActionResult } from "./types";
@@ -344,13 +345,6 @@ export async function getAuditUserRealInputs(params: {
     return { ok: false, error: "Failed to fetch user real inputs" };
   }
 }
-
-// Some clients (Claude Code subagent rounds, slash-command harness, etc.)
-// embed tool results / system reminders / command echoes as plain `text`
-// blocks instead of structured tool_result blocks. Those start with these
-// envelope tokens and are not human-authored input.
-const SYSTEM_WRAPPER_TEXT_PATTERN =
-  /^(\[Tool results\]|<(tool_result|tool_use|system-reminder|command-(name|message|args)|local-command-(stdout|stderr|caveat)|function_calls|functions)\b)/;
 
 // Extracts just the human-authored text from a user message's content,
 // ignoring tool_result / function_call_output / image blocks and the
