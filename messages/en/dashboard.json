@@ -1735,8 +1735,23 @@
         "placeholders": {
           "emptyToClear": "Leave empty to clear",
           "tagsPlaceholder": "Press enter to add, comma-separated",
-          "groupPlaceholder": "Leave empty to reset to default group, comma-separated for multiple",
           "emptyNoLimit": "Leave empty for no limit"
+        },
+        "providerGroupSelect": {
+          "placeholder": "Select or type group (press Enter to add)",
+          "description": "Leave empty to reset to default group, comma-separated for multiple",
+          "providersSuffix": "providers",
+          "loadingText": "Loading...",
+          "errors": {
+            "loadFailed": "Failed to load provider groups"
+          },
+          "tagInputErrors": {
+            "empty": "Tag cannot be empty",
+            "duplicate": "Duplicate tag",
+            "too_long": "Tag is too long",
+            "invalid_format": "Invalid tag format",
+            "max_tags": "Maximum tags exceeded"
+          }
         }
       },
       "key": {

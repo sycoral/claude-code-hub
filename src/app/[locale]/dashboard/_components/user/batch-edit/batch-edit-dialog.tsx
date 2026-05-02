@@ -466,9 +466,9 @@ function BatchEditDialogInner({
                 placeholders: {
                   emptyToClear: t("user.placeholders.emptyToClear"),
                   tagsPlaceholder: t("user.placeholders.tagsPlaceholder"),
-                  groupPlaceholder: t("user.placeholders.groupPlaceholder"),
                   emptyNoLimit: t("user.placeholders.emptyNoLimit"),
                 },
+                providerGroupSelect: t.raw("user.providerGroupSelect") as Record<string, unknown>,
               }}
             />
           ) : null}
