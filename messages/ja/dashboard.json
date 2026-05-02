@@ -1703,6 +1703,7 @@
         "fields": {
           "note": "メモ",
           "tags": "タグ",
+          "providerGroup": "グループ (providerGroup)",
           "rpm": "RPM上限",
           "limit5h": "5時間上限 (USD)",
           "limitDaily": "日次上限 (USD)",
@@ -1712,6 +1713,7 @@
         "placeholders": {
           "emptyToClear": "空欄でクリア",
           "tagsPlaceholder": "Enterで追加、カンマ区切り対応",
+          "groupPlaceholder": "空欄で default グループにリセット、複数はカンマ区切り",
           "emptyNoLimit": "空欄で制限なし"
         }
       },

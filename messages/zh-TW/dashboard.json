@@ -1711,6 +1711,7 @@
         "fields": {
           "note": "備註",
           "tags": "標籤",
+          "providerGroup": "分組（providerGroup）",
           "rpm": "RPM 上限",
           "limit5h": "5h 限額（USD）",
           "limitDaily": "每日限額（USD）",
@@ -1720,6 +1721,7 @@
         "placeholders": {
           "emptyToClear": "留空表示清除",
           "tagsPlaceholder": "輸入後按 Enter 新增，支援逗號分隔",
+          "groupPlaceholder": "留空將重置為 default 分組，多個以逗號分隔",
           "emptyNoLimit": "留空表示不限額"
         }
       },

@@ -10,6 +10,8 @@ export interface BatchUserSectionState {
   note: string;
   tagsEnabled: boolean;
   tags: string[];
+  providerGroupEnabled: boolean;
+  providerGroup: string;
   rpmEnabled: boolean;
   rpm: string;
   limit5hUsdEnabled: boolean;
@@ -33,6 +35,7 @@ export interface BatchUserSectionProps {
     fields: {
       note: string;
       tags: string;
+      providerGroup: string;
       rpm: string;
       limit5h: string;
       limitDaily: string;
@@ -42,6 +45,7 @@ export interface BatchUserSectionProps {
     placeholders: {
       emptyToClear: string;
       tagsPlaceholder: string;
+      groupPlaceholder: string;
       emptyNoLimit: string;
     };
   };
@@ -88,6 +92,20 @@ export function BatchUserSection({
             onChange={(tags) => onChange({ tags })}
             disabled={!state.tagsEnabled}
             placeholder={translations.placeholders.tagsPlaceholder}
+          />
+        </FieldCard>
+
+        <FieldCard
+          title={translations.fields.providerGroup}
+          enabled={state.providerGroupEnabled}
+          onEnabledChange={(enabled) => onChange({ providerGroupEnabled: enabled })}
+          enableFieldAria={translations.enableFieldAria}
+        >
+          <Input
+            value={state.providerGroup}
+            onChange={(e) => onChange({ providerGroup: e.target.value })}
+            disabled={!state.providerGroupEnabled}
+            placeholder={translations.placeholders.groupPlaceholder}
           />
         </FieldCard>
 
