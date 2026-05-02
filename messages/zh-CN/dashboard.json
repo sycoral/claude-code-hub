@@ -1747,11 +1747,13 @@
           "limitDaily": "每日限额 (USD)",
           "limitWeekly": "周限额 (USD)",
           "limitMonthly": "月限额 (USD)",
+          "limitConcurrentSessions": "并发 Session 上限",
           "canLoginWebUi": "独立个人用量页面",
           "keyEnabled": "Key 启用状态"
         },
         "placeholders": {
-          "emptyNoLimit": "留空表示不限额"
+          "emptyNoLimit": "留空表示不限额",
+          "emptyConcurrentNoLimit": "留空或 0 表示不限制（最大 1000）"
         },
         "targetValue": "目标值",
         "providerGroupSelect": {

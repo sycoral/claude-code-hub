@@ -73,6 +73,7 @@ export interface BatchUpdateKeysParams {
     limitDailyUsd?: number | null;
     limitWeeklyUsd?: number | null;
     limitMonthlyUsd?: number | null;
+    limitConcurrentSessions?: number;
     canLoginWebUi?: boolean;
     isEnabled?: boolean;
   };
@@ -1267,6 +1268,13 @@ export async function batchUpdateKeys(
       if (updates.limitMonthlyUsd !== undefined)
         dbUpdates.limitMonthlyUsd =
           updates.limitMonthlyUsd === null ? null : updates.limitMonthlyUsd.toString();
+      if (updates.limitConcurrentSessions !== undefined) {
+        const value = Math.floor(updates.limitConcurrentSessions);
+        if (!Number.isInteger(value) || value < 0 || value > 1000) {
+          throw new BatchUpdateError(tError("INVALID_FORMAT"), ERROR_CODES.INVALID_FORMAT);
+        }
+        dbUpdates.limitConcurrentSessions = value;
+      }
 
       const updatedRows = await tx
         .update(keysTable)

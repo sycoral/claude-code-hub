@@ -1732,11 +1732,13 @@
           "limitDaily": "每日限額（USD）",
           "limitWeekly": "週限額（USD）",
           "limitMonthly": "月限額（USD）",
+          "limitConcurrentSessions": "並發 Session 上限",
           "canLoginWebUi": "獨立個人用量頁面",
           "keyEnabled": "Key 啟用狀態"
         },
         "placeholders": {
-          "emptyNoLimit": "留空表示不限額"
+          "emptyNoLimit": "留空表示不限額",
+          "emptyConcurrentNoLimit": "留空或 0 表示不限制（最大 1000）"
         },
         "targetValue": "目標值",
         "providerGroupSelect": {

@@ -1729,11 +1729,13 @@
           "limitDaily": "Дневной лимит (USD)",
           "limitWeekly": "Недельный лимит (USD)",
           "limitMonthly": "Месячный лимит (USD)",
+          "limitConcurrentSessions": "Лимит одновременных сессий",
           "canLoginWebUi": "Независимая страница использования",
           "keyEnabled": "Статус ключа"
         },
         "placeholders": {
-          "emptyNoLimit": "Оставьте пустым для безлимита"
+          "emptyNoLimit": "Оставьте пустым для безлимита",
+          "emptyConcurrentNoLimit": "Пусто или 0 — без лимита (макс. 1000)"
         },
         "targetValue": "Целевое значение",
         "providerGroupSelect": {

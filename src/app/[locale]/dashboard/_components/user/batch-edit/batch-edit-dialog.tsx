@@ -59,6 +59,7 @@ type KeyFieldLabels = {
   limitDaily: string;
   limitWeekly: string;
   limitMonthly: string;
+  limitConcurrentSessions: string;
   canLoginWebUi: string;
   keyEnabled: string;
 };
@@ -91,6 +92,8 @@ const INITIAL_KEY_STATE: BatchKeySectionState = {
   limitWeeklyUsd: "",
   limitMonthlyUsdEnabled: false,
   limitMonthlyUsd: "",
+  limitConcurrentSessionsEnabled: false,
+  limitConcurrentSessions: "",
   canLoginWebUiEnabled: false,
   canLoginWebUi: false, // Default: independent page enabled (switch ON with inverted logic)
   isEnabledEnabled: false,
@@ -184,6 +187,11 @@ function buildKeyUpdates(
     updates.limitMonthlyUsd = parseNumberOrNull(state.limitMonthlyUsd, args.validationMessages);
     enabledFields.push(args.fieldLabels.limitMonthly);
   }
+  if (state.limitConcurrentSessionsEnabled) {
+    const v = parseNumberOrNull(state.limitConcurrentSessions, args.validationMessages);
+    updates.limitConcurrentSessions = v !== null ? Math.floor(v) : 0;
+    enabledFields.push(args.fieldLabels.limitConcurrentSessions);
+  }
   if (state.canLoginWebUiEnabled) {
     updates.canLoginWebUi = state.canLoginWebUi;
     enabledFields.push(args.fieldLabels.canLoginWebUi);
@@ -253,6 +261,7 @@ function BatchEditDialogInner({
       limitDaily: t("key.fields.limitDaily"),
       limitWeekly: t("key.fields.limitWeekly"),
       limitMonthly: t("key.fields.limitMonthly"),
+      limitConcurrentSessions: t("key.fields.limitConcurrentSessions"),
       canLoginWebUi: t("key.fields.canLoginWebUi"),
       keyEnabled: t("key.fields.keyEnabled"),
     }),
@@ -477,6 +486,7 @@ function BatchEditDialogInner({
                 fields: keyFieldLabels,
                 placeholders: {
                   emptyNoLimit: t("key.placeholders.emptyNoLimit"),
+                  emptyConcurrentNoLimit: t("key.placeholders.emptyConcurrentNoLimit"),
                 },
                 targetValue: t("key.targetValue"),
                 providerGroupSelect: t.raw("key.providerGroupSelect") as Record<string, unknown>,

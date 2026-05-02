@@ -17,6 +17,8 @@ export interface BatchKeySectionState {
   limitWeeklyUsd: string;
   limitMonthlyUsdEnabled: boolean;
   limitMonthlyUsd: string;
+  limitConcurrentSessionsEnabled: boolean;
+  limitConcurrentSessions: string;
   canLoginWebUiEnabled: boolean;
   canLoginWebUi: boolean;
   isEnabledEnabled: boolean;
@@ -37,11 +39,13 @@ export interface BatchKeySectionProps {
       limitDaily: string;
       limitWeekly: string;
       limitMonthly: string;
+      limitConcurrentSessions: string;
       canLoginWebUi: string;
       keyEnabled: string;
     };
     placeholders: {
       emptyNoLimit: string;
+      emptyConcurrentNoLimit: string;
     };
     targetValue: string;
     providerGroupSelect: Record<string, unknown>;
@@ -140,6 +144,25 @@ export function BatchKeySection({
             onChange={(e) => onChange({ limitMonthlyUsd: e.target.value })}
             disabled={!state.limitMonthlyUsdEnabled}
             placeholder={translations.placeholders.emptyNoLimit}
+          />
+        </FieldCard>
+
+        <FieldCard
+          title={translations.fields.limitConcurrentSessions}
+          enabled={state.limitConcurrentSessionsEnabled}
+          onEnabledChange={(enabled) => onChange({ limitConcurrentSessionsEnabled: enabled })}
+          enableFieldAria={translations.enableFieldAria}
+        >
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={1000}
+            step={1}
+            value={state.limitConcurrentSessions}
+            onChange={(e) => onChange({ limitConcurrentSessions: e.target.value })}
+            disabled={!state.limitConcurrentSessionsEnabled}
+            placeholder={translations.placeholders.emptyConcurrentNoLimit}
           />
         </FieldCard>
 

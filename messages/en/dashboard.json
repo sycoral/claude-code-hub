@@ -1746,11 +1746,13 @@
           "limitDaily": "Daily Limit (USD)",
           "limitWeekly": "Weekly Limit (USD)",
           "limitMonthly": "Monthly Limit (USD)",
+          "limitConcurrentSessions": "Concurrent Sessions Limit",
           "canLoginWebUi": "Independent Personal Usage Page",
           "keyEnabled": "Key Enabled Status"
         },
         "placeholders": {
-          "emptyNoLimit": "Leave empty for no limit"
+          "emptyNoLimit": "Leave empty for no limit",
+          "emptyConcurrentNoLimit": "Leave empty or 0 for no limit (max 1000)"
         },
         "targetValue": "Target Value",
         "providerGroupSelect": {
