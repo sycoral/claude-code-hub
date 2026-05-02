@@ -241,7 +241,6 @@ export interface BatchUpdateUsersParams {
     limit5hResetMode?: "fixed" | "rolling";
     limitWeeklyUsd?: number | null;
     limitMonthlyUsd?: number | null;
-    providerGroup?: string | null;
   };
 }
 
@@ -1025,7 +1024,6 @@ export async function batchUpdateUsers(
       limit5hResetMode: true,
       limitWeeklyUsd: true,
       limitMonthlyUsd: true,
-      providerGroup: true,
     });
 
     const validationResult = updatesSchema.safeParse(params.updates ?? {});
@@ -1078,8 +1076,6 @@ export async function batchUpdateUsers(
       if (updates.limitMonthlyUsd !== undefined)
         dbUpdates.limitMonthlyUsd =
           updates.limitMonthlyUsd === null ? null : updates.limitMonthlyUsd.toString();
-      if (updates.providerGroup !== undefined)
-        dbUpdates.providerGroup = normalizeProviderGroup(updates.providerGroup);
 
       const updatedRows = await tx
         .update(usersTable)

@@ -1708,7 +1708,6 @@
         "fields": {
           "note": "Заметка",
           "tags": "Теги",
-          "providerGroup": "Группа (providerGroup)",
           "rpm": "Лимит RPM",
           "limit5h": "Лимит за 5 часов (USD)",
           "limitDaily": "Дневной лимит (USD)",
@@ -1718,7 +1717,6 @@
         "placeholders": {
           "emptyToClear": "Оставьте пустым, чтобы очистить",
           "tagsPlaceholder": "Нажмите Enter, чтобы добавить, можно разделять запятыми",
-          "groupPlaceholder": "Оставьте пустым для сброса к группе default; несколько значений через запятую",
           "emptyNoLimit": "Оставьте пустым для безлимита"
         }
       },

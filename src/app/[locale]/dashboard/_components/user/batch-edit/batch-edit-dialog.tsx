@@ -46,7 +46,6 @@ type ValidationMessages = {
 type UserFieldLabels = {
   note: string;
   tags: string;
-  providerGroup: string;
   rpm: string;
   limit5h: string;
   limitDaily: string;
@@ -69,8 +68,6 @@ const INITIAL_USER_STATE: BatchUserSectionState = {
   note: "",
   tagsEnabled: false,
   tags: [],
-  providerGroupEnabled: false,
-  providerGroup: "",
   rpmEnabled: false,
   rpm: "",
   limit5hUsdEnabled: false,
@@ -130,11 +127,6 @@ function buildUserUpdates(
   if (state.tagsEnabled) {
     updates.tags = state.tags;
     enabledFields.push(args.fieldLabels.tags);
-  }
-  if (state.providerGroupEnabled) {
-    const normalized = state.providerGroup.trim();
-    updates.providerGroup = normalized ? normalized : null;
-    enabledFields.push(args.fieldLabels.providerGroup);
   }
   if (state.rpmEnabled) {
     const rpmValue = parseNumberOrNull(state.rpm, args.validationMessages);
@@ -245,7 +237,6 @@ function BatchEditDialogInner({
     () => ({
       note: t("user.fields.note"),
       tags: t("user.fields.tags"),
-      providerGroup: t("user.fields.providerGroup"),
       rpm: t("user.fields.rpm"),
       limit5h: t("user.fields.limit5h"),
       limitDaily: t("user.fields.limitDaily"),
@@ -466,7 +457,6 @@ function BatchEditDialogInner({
                 placeholders: {
                   emptyToClear: t("user.placeholders.emptyToClear"),
                   tagsPlaceholder: t("user.placeholders.tagsPlaceholder"),
-                  groupPlaceholder: t("user.placeholders.groupPlaceholder"),
                   emptyNoLimit: t("user.placeholders.emptyNoLimit"),
                 },
               }}

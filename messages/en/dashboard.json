@@ -1725,7 +1725,6 @@
         "fields": {
           "note": "Note",
           "tags": "Tags",
-          "providerGroup": "Group (providerGroup)",
           "rpm": "RPM Limit",
           "limit5h": "5h Limit (USD)",
           "limitDaily": "Daily Limit (USD)",
@@ -1735,7 +1734,6 @@
         "placeholders": {
           "emptyToClear": "Leave empty to clear",
           "tagsPlaceholder": "Press enter to add, comma-separated",
-          "groupPlaceholder": "Leave empty to reset to default group, comma-separated for multiple",
           "emptyNoLimit": "Leave empty for no limit"
         }
       },
