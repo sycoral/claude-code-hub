@@ -1736,10 +1736,25 @@
           "keyEnabled": "Key 啟用狀態"
         },
         "placeholders": {
-          "groupPlaceholder": "留空表示清空分組，多個以逗號分隔",
           "emptyNoLimit": "留空表示不限額"
         },
-        "targetValue": "目標值"
+        "targetValue": "目標值",
+        "providerGroupSelect": {
+          "placeholder": "選擇或輸入分組（按 Enter 新增）",
+          "description": "留空表示清空分組，多個以逗號分隔",
+          "providersSuffix": "個供應商",
+          "loadingText": "載入中...",
+          "errors": {
+            "loadFailed": "載入供應商分組失敗"
+          },
+          "tagInputErrors": {
+            "empty": "標籤不能為空",
+            "duplicate": "標籤重複",
+            "too_long": "標籤過長",
+            "invalid_format": "標籤格式不合法",
+            "max_tags": "標籤數量超過上限"
+          }
+        }
       }
     },
     "createDialog": {

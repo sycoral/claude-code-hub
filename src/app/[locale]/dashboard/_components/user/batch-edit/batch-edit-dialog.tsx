@@ -476,10 +476,10 @@ function BatchEditDialogInner({
                 enableFieldAria: t.raw("user.enableFieldAria") as string,
                 fields: keyFieldLabels,
                 placeholders: {
-                  groupPlaceholder: t("key.placeholders.groupPlaceholder"),
                   emptyNoLimit: t("key.placeholders.emptyNoLimit"),
                 },
                 targetValue: t("key.targetValue"),
+                providerGroupSelect: t.raw("key.providerGroupSelect") as Record<string, unknown>,
               }}
             />
           ) : null}

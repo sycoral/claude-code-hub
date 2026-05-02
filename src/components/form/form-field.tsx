@@ -140,6 +140,7 @@ export interface TagInputFieldProps
   touched?: boolean;
   required?: boolean;
   description?: string;
+  hideLabel?: boolean;
 }
 
 /**
@@ -168,6 +169,7 @@ export function TagInputField({
   touched,
   required,
   description,
+  hideLabel,
   className,
   ...tagInputProps
 }: TagInputFieldProps) {
@@ -185,12 +187,14 @@ export function TagInputField({
 
   return (
     <div className="grid gap-2">
-      <Label
-        htmlFor={fieldId}
-        className={cn(required && "after:content-['*'] after:ml-0.5 after:text-destructive")}
-      >
-        {label}
-      </Label>
+      {hideLabel ? null : (
+        <Label
+          htmlFor={fieldId}
+          className={cn(required && "after:content-['*'] after:ml-0.5 after:text-destructive")}
+        >
+          {label}
+        </Label>
+      )}
       <TagInput
         {...tagInputProps}
         id={fieldId}

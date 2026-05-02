@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { ProviderGroupSelect } from "../forms/provider-group-select";
 import { FieldCard } from "./field-card";
 import { formatMessage } from "./utils";
 
@@ -40,10 +41,10 @@ export interface BatchKeySectionProps {
       keyEnabled: string;
     };
     placeholders: {
-      groupPlaceholder: string;
       emptyNoLimit: string;
     };
     targetValue: string;
+    providerGroupSelect: Record<string, unknown>;
   };
 }
 
@@ -69,11 +70,12 @@ export function BatchKeySection({
           onEnabledChange={(enabled) => onChange({ providerGroupEnabled: enabled })}
           enableFieldAria={translations.enableFieldAria}
         >
-          <Input
+          <ProviderGroupSelect
             value={state.providerGroup}
-            onChange={(e) => onChange({ providerGroup: e.target.value })}
+            onChange={(val) => onChange({ providerGroup: val })}
             disabled={!state.providerGroupEnabled}
-            placeholder={translations.placeholders.groupPlaceholder}
+            hideLabel
+            translations={translations.providerGroupSelect}
           />
         </FieldCard>
 

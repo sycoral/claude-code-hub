@@ -1728,10 +1728,25 @@
           "keyEnabled": "キー有効状態"
         },
         "placeholders": {
-          "groupPlaceholder": "空欄でクリア、複数はカンマ区切り",
           "emptyNoLimit": "空欄で制限なし"
         },
-        "targetValue": "目標値"
+        "targetValue": "目標値",
+        "providerGroupSelect": {
+          "placeholder": "グループを選択または入力（Enter で追加）",
+          "description": "空欄でクリア、複数はカンマ区切り",
+          "providersSuffix": "個のプロバイダー",
+          "loadingText": "読み込み中...",
+          "errors": {
+            "loadFailed": "プロバイダーグループの読み込みに失敗しました"
+          },
+          "tagInputErrors": {
+            "empty": "タグは空にできません",
+            "duplicate": "タグが重複しています",
+            "too_long": "タグが長すぎます",
+            "invalid_format": "タグの形式が無効です",
+            "max_tags": "タグ数が上限を超えています"
+          }
+        }
       }
     },
     "createDialog": {
