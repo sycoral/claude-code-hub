@@ -2,7 +2,6 @@
 
 import { Input } from "@/components/ui/input";
 import { TagInput } from "@/components/ui/tag-input";
-import { ProviderGroupSelect } from "../forms/provider-group-select";
 import { FieldCard } from "./field-card";
 import { formatMessage } from "./utils";
 
@@ -46,9 +45,9 @@ export interface BatchUserSectionProps {
     placeholders: {
       emptyToClear: string;
       tagsPlaceholder: string;
+      groupPlaceholder: string;
       emptyNoLimit: string;
     };
-    providerGroupSelect: Record<string, unknown>;
   };
 }
 
@@ -102,12 +101,11 @@ export function BatchUserSection({
           onEnabledChange={(enabled) => onChange({ providerGroupEnabled: enabled })}
           enableFieldAria={translations.enableFieldAria}
         >
-          <ProviderGroupSelect
+          <Input
             value={state.providerGroup}
-            onChange={(val) => onChange({ providerGroup: val })}
+            onChange={(e) => onChange({ providerGroup: e.target.value })}
             disabled={!state.providerGroupEnabled}
-            hideLabel
-            translations={translations.providerGroupSelect}
+            placeholder={translations.placeholders.groupPlaceholder}
           />
         </FieldCard>
 

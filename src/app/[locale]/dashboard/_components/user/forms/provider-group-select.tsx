@@ -15,8 +15,6 @@ export interface ProviderGroupSelectProps {
   disabled?: boolean;
   /** Whether to show provider counts in suggestions. Defaults to `true`. */
   showProviderCount?: boolean;
-  /** Suppress the inner label when the parent already renders one. */
-  hideLabel?: boolean;
   /**
    * i18n strings passed from parent.
    * Expected keys (optional):
@@ -43,7 +41,6 @@ export function ProviderGroupSelect({
   onChange,
   disabled = false,
   showProviderCount = true,
-  hideLabel = false,
   translations,
 }: ProviderGroupSelectProps) {
   const [groups, setGroups] = useState<Array<{ group: string; providerCount: number }>>([]);
@@ -126,7 +123,6 @@ export function ProviderGroupSelect({
   return (
     <TagInputField
       label={getTranslation(translations, "label", "Provider group")}
-      hideLabel={hideLabel}
       placeholder={getTranslation(translations, "placeholder", "Enter group and press Enter")}
       description={description}
       maxTagLength={200}

@@ -1713,23 +1713,8 @@
         "placeholders": {
           "emptyToClear": "空欄でクリア",
           "tagsPlaceholder": "Enterで追加、カンマ区切り対応",
+          "groupPlaceholder": "空欄で default グループにリセット、複数はカンマ区切り",
           "emptyNoLimit": "空欄で制限なし"
-        },
-        "providerGroupSelect": {
-          "placeholder": "グループを選択または入力（Enter で追加）",
-          "description": "空欄で default グループにリセット、複数はカンマ区切り",
-          "providersSuffix": "個のプロバイダー",
-          "loadingText": "読み込み中...",
-          "errors": {
-            "loadFailed": "プロバイダーグループの読み込みに失敗しました"
-          },
-          "tagInputErrors": {
-            "empty": "タグは空にできません",
-            "duplicate": "タグが重複しています",
-            "too_long": "タグが長すぎます",
-            "invalid_format": "タグの形式が無効です",
-            "max_tags": "タグ数が上限を超えています"
-          }
         }
       },
       "key": {

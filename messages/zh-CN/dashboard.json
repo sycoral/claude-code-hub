@@ -1736,23 +1736,8 @@
         "placeholders": {
           "emptyToClear": "留空表示清空",
           "tagsPlaceholder": "输入后回车添加，支持逗号分隔",
+          "groupPlaceholder": "留空将重置为 default 分组，多个用逗号分隔",
           "emptyNoLimit": "留空表示不限额"
-        },
-        "providerGroupSelect": {
-          "placeholder": "选择或输入分组（回车添加）",
-          "description": "留空将重置为 default 分组，多个用逗号分隔",
-          "providersSuffix": "个供应商",
-          "loadingText": "加载中...",
-          "errors": {
-            "loadFailed": "加载供应商分组失败"
-          },
-          "tagInputErrors": {
-            "empty": "标签不能为空",
-            "duplicate": "标签重复",
-            "too_long": "标签过长",
-            "invalid_format": "标签格式不合法",
-            "max_tags": "标签数量超过上限"
-          }
         }
       },
       "key": {
