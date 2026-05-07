@@ -50,7 +50,10 @@
     "provider_group": {
       "create": "Create provider group",
       "update": "Update provider group",
-      "delete": "Delete provider group"
+      "delete": "Delete provider group",
+      "sticky": {
+        "evict": "Evict sticky-bound user"
+      }
     },
     "system_settings": {
       "update": "Update system settings"

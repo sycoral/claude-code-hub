@@ -40,6 +40,10 @@ const makePipeline = () => {
       calls.push(["zcard", ...args]);
       return pipeline;
     }),
+    zrange: vi.fn((...args: unknown[]) => {
+      calls.push(["zrange", ...args]);
+      return pipeline;
+    }),
     exec: vi.fn(async () => {
       calls.push(["exec"]);
       return execReturn;
@@ -67,6 +71,15 @@ vi.mock("@/lib/logger", () => ({
 
 vi.mock("@/lib/redis", () => ({
   getRedisClient: () => redisClientRef,
+}));
+
+const mockGetUserLoadWeights = vi.fn();
+vi.mock("@/lib/sticky/load-weight", () => ({
+  getUserLoadWeights: mockGetUserLoadWeights,
+  NORMAL_WEIGHT: 1,
+  HEAVY_WEIGHT: 3,
+  MEDIUM_WEIGHT: 2,
+  clearLoadWeightCache: () => {},
 }));
 
 const NOW_MS = 1_700_000_000_000;
@@ -347,6 +360,141 @@ describe("user-group-sticky", () => {
       const { isUserCountedOn } = await import("@/lib/sticky/user-group-sticky");
 
       expect(await isUserCountedOn(42, "team-a", 7)).toBe(false);
+    });
+  });
+
+  // ---------- listActiveUsers ----------
+
+  describe("listActiveUsers", () => {
+    it("prunes expired entries then returns parsed and sorted entries", async () => {
+      const { listActiveUsers } = await import("@/lib/sticky/user-group-sticky");
+
+      const e1 = NOW_MS + 5_000; // earlier expiry
+      const e2 = NOW_MS + 10_000;
+      const e3 = NOW_MS + 1_000;
+
+      redisClientRef!.pipeline.mockImplementationOnce(() => {
+        const p = makePipeline();
+        lastPipeline = p;
+        p.setExecReturn([
+          [null, 0],
+          [null, ["7", String(e1), "8", String(e2), "9", String(e3)]],
+        ]);
+        return p;
+      });
+
+      const out = await listActiveUsers(42, "team-a");
+
+      expect(lastPipeline!.zremrangebyscore).toHaveBeenCalledWith(
+        "provider:42:group:team-a:active_users",
+        0,
+        NOW_MS
+      );
+      expect(lastPipeline!.zrange).toHaveBeenCalledWith(
+        "provider:42:group:team-a:active_users",
+        0,
+        -1,
+        "WITHSCORES"
+      );
+      // Sorted ascending by expireAtMs.
+      expect(out).toEqual([
+        { uid: 9, expireAtMs: e3 },
+        { uid: 7, expireAtMs: e1 },
+        { uid: 8, expireAtMs: e2 },
+      ]);
+    });
+
+    it("returns [] when redis is not ready", async () => {
+      redisClientRef = null;
+      const { listActiveUsers } = await import("@/lib/sticky/user-group-sticky");
+
+      expect(await listActiveUsers(42, "team-a")).toEqual([]);
+    });
+
+    it("returns [] when zrange reports an error", async () => {
+      const { listActiveUsers } = await import("@/lib/sticky/user-group-sticky");
+      redisClientRef!.pipeline.mockImplementationOnce(() => {
+        const p = makePipeline();
+        lastPipeline = p;
+        p.setExecReturn([
+          [null, 0],
+          [new Error("zrange fail"), null],
+        ]);
+        return p;
+      });
+
+      expect(await listActiveUsers(42, "team-a")).toEqual([]);
+    });
+
+    it("ignores malformed entries (non-numeric uid or score)", async () => {
+      const { listActiveUsers } = await import("@/lib/sticky/user-group-sticky");
+      redisClientRef!.pipeline.mockImplementationOnce(() => {
+        const p = makePipeline();
+        lastPipeline = p;
+        p.setExecReturn([
+          [null, 0],
+          [null, ["abc", "999", "7", "not-a-score", "8", String(NOW_MS + 1000)]],
+        ]);
+        return p;
+      });
+
+      expect(await listActiveUsers(42, "team-a")).toEqual([{ uid: 8, expireAtMs: NOW_MS + 1000 }]);
+    });
+  });
+
+  // ---------- getWeightedActiveLoad ----------
+
+  describe("getWeightedActiveLoad", () => {
+    it("returns 0 when no active users", async () => {
+      const { getWeightedActiveLoad } = await import("@/lib/sticky/user-group-sticky");
+      redisClientRef!.pipeline.mockImplementationOnce(() => {
+        const p = makePipeline();
+        lastPipeline = p;
+        p.setExecReturn([
+          [null, 0],
+          [null, []],
+        ]);
+        return p;
+      });
+
+      expect(await getWeightedActiveLoad(42, "team-a")).toBe(0);
+      // No need to consult weight map when ZSet is empty.
+      expect(mockGetUserLoadWeights).not.toHaveBeenCalled();
+    });
+
+    it("sums weights from the load-weight map", async () => {
+      const { getWeightedActiveLoad } = await import("@/lib/sticky/user-group-sticky");
+      // 3 users in ZSet: 7, 8, 9
+      redisClientRef!.pipeline.mockImplementationOnce(() => {
+        const p = makePipeline();
+        lastPipeline = p;
+        p.setExecReturn([
+          [null, 0],
+          [
+            null,
+            ["7", String(NOW_MS + 1000), "8", String(NOW_MS + 2000), "9", String(NOW_MS + 3000)],
+          ],
+        ]);
+        return p;
+      });
+      mockGetUserLoadWeights.mockResolvedValueOnce(
+        new Map<number, number>([
+          [7, 3], // heavy
+          [8, 2], // medium
+          // 9 is not in the map → NORMAL_WEIGHT (1)
+        ])
+      );
+
+      const total = await getWeightedActiveLoad(42, "team-a");
+      // 3 + 2 + 1 = 6
+      expect(total).toBe(6);
+    });
+
+    it("returns 0 when redis is not ready", async () => {
+      redisClientRef = null;
+      const { getWeightedActiveLoad } = await import("@/lib/sticky/user-group-sticky");
+
+      expect(await getWeightedActiveLoad(42, "team-a")).toBe(0);
     });
   });
 });

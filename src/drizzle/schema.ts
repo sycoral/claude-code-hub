@@ -179,6 +179,13 @@ export const providerGroups = pgTable('provider_groups', {
   stickyEnabled: boolean('sticky_enabled').notNull().default(false),
   stickyTtlHours: integer('sticky_ttl_hours').notNull().default(168),
   maxActiveUsersPerProvider: integer('max_active_users_per_provider'),
+  // Load-balance ranking mode within the min-priority tier:
+  //   "headcount" — distinct active user count (default, original behavior)
+  //   "weighted"  — sum of per-user load weights derived from past-7d token usage
+  loadSortMode: varchar('load_sort_mode', { length: 20 })
+    .$type<'headcount' | 'weighted'>()
+    .notNull()
+    .default('headcount'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

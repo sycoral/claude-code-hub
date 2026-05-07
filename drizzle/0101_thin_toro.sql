@@ -1,0 +1,1 @@
+ALTER TABLE "provider_groups" ADD COLUMN "load_sort_mode" varchar(20) DEFAULT 'headcount' NOT NULL;

@@ -50,7 +50,10 @@
     "provider_group": {
       "create": "建立供應商分組",
       "update": "更新供應商分組",
-      "delete": "刪除供應商分組"
+      "delete": "刪除供應商分組",
+      "sticky": {
+        "evict": "剔除黏性繫結用戶"
+      }
     },
     "system_settings": {
       "update": "更新系統設定"

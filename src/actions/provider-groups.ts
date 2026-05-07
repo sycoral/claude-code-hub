@@ -1,6 +1,9 @@
 "use server";
 
+import { inArray } from "drizzle-orm";
 import { getTranslations } from "next-intl/server";
+import { db } from "@/drizzle/db";
+import { users as usersTable } from "@/drizzle/schema";
 import { emitActionAudit } from "@/lib/audit/emit";
 import { getSession } from "@/lib/auth";
 import { PROVIDER_GROUP } from "@/lib/constants/provider.constants";
@@ -11,6 +14,8 @@ import {
   serializePublicStatusDescription,
 } from "@/lib/public-status/config";
 import { exceedsProviderGroupDescriptionLimit } from "@/lib/public-status/description-limit";
+import { getUserLoadWeights, NORMAL_WEIGHT } from "@/lib/sticky/load-weight";
+import { clearSticky, countActiveUsers, listActiveUsers } from "@/lib/sticky/user-group-sticky";
 import { ERROR_CODES } from "@/lib/utils/error-messages";
 import {
   countProvidersUsingGroup,
@@ -74,12 +79,19 @@ export async function getProviderGroups(): Promise<ActionResult<ProviderGroupWit
 
 const STICKY_TTL_HOURS_MIN = 1;
 const STICKY_TTL_HOURS_MAX = 720; // 30 days
+const LOAD_SORT_MODES = ["headcount", "weighted"] as const;
+type LoadSortMode = (typeof LOAD_SORT_MODES)[number];
+
+function isLoadSortMode(value: unknown): value is LoadSortMode {
+  return LOAD_SORT_MODES.includes(value as LoadSortMode);
+}
 
 function validateStickyFields(
   input: {
     stickyEnabled?: boolean;
     stickyTtlHours?: number;
     maxActiveUsersPerProvider?: number | null;
+    loadSortMode?: LoadSortMode;
   },
   t: (key: string) => string
 ): { ok: false; error: string; errorCode: string } | { ok: true } {
@@ -101,6 +113,13 @@ function validateStickyFields(
       };
     }
   }
+  if (input.loadSortMode !== undefined && !isLoadSortMode(input.loadSortMode)) {
+    return {
+      ok: false,
+      error: t("invalidLoadSortMode"),
+      errorCode: "INVALID_LOAD_SORT_MODE",
+    };
+  }
   return { ok: true };
 }
 
@@ -115,6 +134,7 @@ export async function createProviderGroup(input: {
   stickyEnabled?: boolean;
   stickyTtlHours?: number;
   maxActiveUsersPerProvider?: number | null;
+  loadSortMode?: LoadSortMode;
 }): Promise<ActionResult<ProviderGroup>> {
   const t = await getTranslations("settings.providers.providerGroups");
   const tError = await getTranslations("errors");
@@ -170,6 +190,7 @@ export async function createProviderGroup(input: {
       stickyEnabled: input.stickyEnabled,
       stickyTtlHours: input.stickyTtlHours,
       maxActiveUsersPerProvider: input.maxActiveUsersPerProvider,
+      loadSortMode: input.loadSortMode,
     });
 
     emitActionAudit({
@@ -186,6 +207,7 @@ export async function createProviderGroup(input: {
         stickyEnabled: group.stickyEnabled,
         stickyTtlHours: group.stickyTtlHours,
         maxActiveUsersPerProvider: group.maxActiveUsersPerProvider,
+        loadSortMode: group.loadSortMode,
       },
       success: true,
     });
@@ -217,6 +239,7 @@ export async function updateProviderGroup(
     stickyEnabled?: boolean;
     stickyTtlHours?: number;
     maxActiveUsersPerProvider?: number | null;
+    loadSortMode?: LoadSortMode;
   }
 ): Promise<ActionResult<ProviderGroup>> {
   const t = await getTranslations("settings.providers.providerGroups");
@@ -265,6 +288,7 @@ export async function updateProviderGroup(
       stickyEnabled: input.stickyEnabled,
       stickyTtlHours: input.stickyTtlHours,
       maxActiveUsersPerProvider: input.maxActiveUsersPerProvider,
+      loadSortMode: input.loadSortMode,
     });
 
     if (!updated) {
@@ -286,6 +310,7 @@ export async function updateProviderGroup(
         stickyEnabled: updated.stickyEnabled,
         stickyTtlHours: updated.stickyTtlHours,
         maxActiveUsersPerProvider: updated.maxActiveUsersPerProvider,
+        loadSortMode: updated.loadSortMode,
       },
       success: true,
     });
@@ -364,5 +389,174 @@ export async function deleteProviderGroup(id: number): Promise<ActionResult<void
       errorMessage: "DELETE_FAILED",
     });
     return { ok: false, error: t("deleteFailed"), errorCode: ERROR_CODES.DELETE_FAILED };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sticky binding inspection / eviction (admin-only)
+// ---------------------------------------------------------------------------
+
+export interface StickyActiveUser {
+  uid: number;
+  name: string | null;
+  expireAtMs: number;
+  loadWeight: number;
+}
+
+/**
+ * Return active users currently bound to a provider in a group, joined with
+ * user names. Admin-only.
+ */
+export async function listStickyActiveUsers(
+  groupName: string,
+  providerId: number
+): Promise<ActionResult<StickyActiveUser[]>> {
+  const tError = await getTranslations("errors");
+  try {
+    const session = await getSession();
+    if (!session || session.user.role !== "admin") {
+      return { ok: false, error: tError("UNAUTHORIZED"), errorCode: ERROR_CODES.UNAUTHORIZED };
+    }
+    if (!groupName || !Number.isInteger(providerId) || providerId <= 0) {
+      return {
+        ok: false,
+        error: tError("INVALID_FORMAT"),
+        errorCode: ERROR_CODES.INVALID_FORMAT,
+      };
+    }
+
+    const entries = await listActiveUsers(providerId, groupName);
+    if (entries.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const uids = entries.map((entry) => entry.uid);
+    const [userRows, weights] = await Promise.all([
+      db
+        .select({ id: usersTable.id, name: usersTable.name })
+        .from(usersTable)
+        .where(inArray(usersTable.id, uids)),
+      getUserLoadWeights(),
+    ]);
+    const nameById = new Map(userRows.map((row) => [row.id, row.name] as const));
+
+    const data: StickyActiveUser[] = entries.map((entry) => ({
+      uid: entry.uid,
+      name: nameById.get(entry.uid) ?? null,
+      expireAtMs: entry.expireAtMs,
+      loadWeight: weights.get(entry.uid) ?? NORMAL_WEIGHT,
+    }));
+    return { ok: true, data };
+  } catch (error) {
+    logger.error("Failed to list sticky active users:", error);
+    return {
+      ok: false,
+      error: tError("OPERATION_FAILED"),
+      errorCode: ERROR_CODES.OPERATION_FAILED,
+    };
+  }
+}
+
+/**
+ * Evict a single user's sticky binding from a provider in a group.
+ * Removes both the user→provider key and the user's ZSet entry. Admin-only.
+ */
+export async function evictStickyUser(
+  groupName: string,
+  providerId: number,
+  uid: number
+): Promise<ActionResult<undefined>> {
+  const tError = await getTranslations("errors");
+  try {
+    const session = await getSession();
+    if (!session || session.user.role !== "admin") {
+      return { ok: false, error: tError("UNAUTHORIZED"), errorCode: ERROR_CODES.UNAUTHORIZED };
+    }
+    if (
+      !groupName ||
+      !Number.isInteger(providerId) ||
+      providerId <= 0 ||
+      !Number.isInteger(uid) ||
+      uid <= 0
+    ) {
+      return {
+        ok: false,
+        error: tError("INVALID_FORMAT"),
+        errorCode: ERROR_CODES.INVALID_FORMAT,
+      };
+    }
+
+    await clearSticky(uid, groupName, providerId);
+    emitActionAudit({
+      category: "provider_group",
+      action: "provider_group.sticky.evict",
+      targetType: "provider_group",
+      targetName: groupName,
+      after: { providerId, uid },
+      success: true,
+    });
+    return { ok: true, data: undefined };
+  } catch (error) {
+    logger.error("Failed to evict sticky user:", error);
+    emitActionAudit({
+      category: "provider_group",
+      action: "provider_group.sticky.evict",
+      targetType: "provider_group",
+      targetName: groupName,
+      success: false,
+      errorMessage: "OPERATION_FAILED",
+    });
+    return {
+      ok: false,
+      error: tError("OPERATION_FAILED"),
+      errorCode: ERROR_CODES.OPERATION_FAILED,
+    };
+  }
+}
+
+/**
+ * Return active-user counts keyed by provider id for a single group.
+ * Admin-only. Used by the group-expansion table to populate the active-users
+ * column without N round-trips from the client.
+ */
+export async function countStickyActiveUsersByProvider(
+  groupName: string,
+  providerIds: number[]
+): Promise<ActionResult<Record<number, number>>> {
+  const tError = await getTranslations("errors");
+  try {
+    const session = await getSession();
+    if (!session || session.user.role !== "admin") {
+      return { ok: false, error: tError("UNAUTHORIZED"), errorCode: ERROR_CODES.UNAUTHORIZED };
+    }
+    if (!groupName || !Array.isArray(providerIds)) {
+      return {
+        ok: false,
+        error: tError("INVALID_FORMAT"),
+        errorCode: ERROR_CODES.INVALID_FORMAT,
+      };
+    }
+    const sanitized = Array.from(
+      new Set(providerIds.filter((id) => Number.isInteger(id) && id > 0))
+    );
+    if (sanitized.length === 0) {
+      return { ok: true, data: {} };
+    }
+
+    const counts = await Promise.all(
+      sanitized.map((id) => countActiveUsers(id, groupName).then((c) => [id, c] as const))
+    );
+    const data: Record<number, number> = {};
+    for (const [id, count] of counts) {
+      data[id] = count;
+    }
+    return { ok: true, data };
+  } catch (error) {
+    logger.error("Failed to count sticky active users:", error);
+    return {
+      ok: false,
+      error: tError("OPERATION_FAILED"),
+      errorCode: ERROR_CODES.OPERATION_FAILED,
+    };
   }
 }

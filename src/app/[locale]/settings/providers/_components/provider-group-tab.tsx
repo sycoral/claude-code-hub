@@ -17,6 +17,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransit
 import { toast } from "sonner";
 import type { ProviderGroupWithCount } from "@/actions/provider-groups";
 import {
+  countStickyActiveUsersByProvider,
   createProviderGroup,
   deleteProviderGroup,
   getProviderGroups,
@@ -58,6 +59,9 @@ import type { ProviderDisplay } from "@/types/provider";
 import { ProviderBatchActions, ProviderBatchDialog, ProviderBatchToolbar } from "./batch-edit";
 import { InlineEditPopover } from "./inline-edit-popover";
 import { invalidateProviderQueries } from "./invalidate-provider-queries";
+import { StickyActiveUsersDialog } from "./sticky-active-users-dialog";
+
+type LoadSortMode = "headcount" | "weighted";
 
 interface GroupFormState {
   name: string;
@@ -66,6 +70,7 @@ interface GroupFormState {
   stickyEnabled: boolean;
   stickyTtlHours: string;
   maxActiveUsersPerProvider: string;
+  loadSortMode: LoadSortMode;
 }
 
 interface ProviderGroupTabProps {
@@ -81,6 +86,7 @@ const INITIAL_FORM: GroupFormState = {
   stickyEnabled: false,
   stickyTtlHours: "168",
   maxActiveUsersPerProvider: "",
+  loadSortMode: "headcount",
 };
 
 function getProviderGroupDescriptionNote(description: string | null | undefined): string {
@@ -146,6 +152,7 @@ export function ProviderGroupTab({
       stickyTtlHours: String(group.stickyTtlHours),
       maxActiveUsersPerProvider:
         group.maxActiveUsersPerProvider != null ? String(group.maxActiveUsersPerProvider) : "",
+      loadSortMode: group.loadSortMode,
     });
     setDialogOpen(true);
   }, []);
@@ -171,6 +178,8 @@ export function ProviderGroupTab({
           return t("invalidStickyTtl");
         case "INVALID_MAX_ACTIVE_USERS":
           return t("invalidMaxActiveUsers");
+        case "INVALID_LOAD_SORT_MODE":
+          return t("invalidLoadSortMode");
         default:
           return fallback;
       }
@@ -188,6 +197,7 @@ export function ProviderGroupTab({
         stickyEnabled?: boolean;
         stickyTtlHours?: number;
         maxActiveUsersPerProvider?: number | null;
+        loadSortMode?: LoadSortMode;
       }
     ): Promise<boolean> => {
       const result = await updateProviderGroup(groupId, patch);
@@ -245,6 +255,7 @@ export function ProviderGroupTab({
           stickyEnabled: form.stickyEnabled,
           stickyTtlHours,
           maxActiveUsersPerProvider: maxActiveUsers,
+          loadSortMode: form.loadSortMode,
         });
         if (ok) {
           closeDialog();
@@ -259,6 +270,7 @@ export function ProviderGroupTab({
         stickyEnabled: form.stickyEnabled,
         stickyTtlHours,
         maxActiveUsersPerProvider: maxActiveUsers,
+        loadSortMode: form.loadSortMode,
       });
       if (result.ok) {
         toast.success(t("createSuccess"));
@@ -465,6 +477,8 @@ export function ProviderGroupTab({
                             groupName={group.name}
                             members={members}
                             canEdit={isAdmin}
+                            stickyEnabled={group.stickyEnabled}
+                            stickyCap={group.maxActiveUsersPerProvider}
                             onSaved={fetchGroups}
                             onRequestEditProvider={onRequestEditProvider}
                           />
@@ -590,6 +604,38 @@ export function ProviderGroupTab({
                   {t("advanced.maxActiveUsers.helper")}
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium">{t("advanced.loadSortMode.label")}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["headcount", "weighted"] as const).map((mode) => {
+                    const active = form.loadSortMode === mode;
+                    return (
+                      <button
+                        type="button"
+                        key={mode}
+                        disabled={!form.stickyEnabled}
+                        onClick={() => setForm((prev) => ({ ...prev, loadSortMode: mode }))}
+                        className={cn(
+                          "flex flex-col items-start gap-1 rounded-md border p-3 text-left transition",
+                          active
+                            ? "border-primary bg-primary/5 ring-1 ring-primary"
+                            : "border-input hover:bg-muted/40",
+                          !form.stickyEnabled && "cursor-not-allowed opacity-50"
+                        )}
+                      >
+                        <span className="text-sm font-medium">
+                          {t(`advanced.loadSortMode.${mode}.label`)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {t(`advanced.loadSortMode.${mode}.description`)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">{t("advanced.loadSortMode.helper")}</p>
+              </div>
             </div>
           </div>
 
@@ -638,6 +684,8 @@ interface GroupMembersPanelProps {
   groupName: string;
   members: ProviderDisplay[];
   canEdit: boolean;
+  stickyEnabled: boolean;
+  stickyCap: number | null;
   onSaved: () => void;
   onRequestEditProvider: (providerId: number) => void;
 }
@@ -646,6 +694,8 @@ function GroupMembersPanel({
   groupName,
   members,
   canEdit,
+  stickyEnabled,
+  stickyCap,
   onSaved,
   onRequestEditProvider,
 }: GroupMembersPanelProps) {
@@ -654,6 +704,30 @@ function GroupMembersPanel({
   const [selectedProviderIds, setSelectedProviderIds] = useState<Set<number>>(new Set());
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const [batchActionMode, setBatchActionMode] = useState<BatchActionMode>(null);
+
+  const [activeCounts, setActiveCounts] = useState<Record<number, number>>({});
+  const [activeDialogProviderId, setActiveDialogProviderId] = useState<number | null>(null);
+
+  const refreshActiveCounts = useCallback(async () => {
+    if (!stickyEnabled || members.length === 0) {
+      setActiveCounts({});
+      return;
+    }
+    const ids = members.map((m) => m.id);
+    const res = await countStickyActiveUsersByProvider(groupName, ids);
+    if (res.ok) {
+      setActiveCounts(res.data);
+    }
+  }, [groupName, members, stickyEnabled]);
+
+  useEffect(() => {
+    void refreshActiveCounts();
+  }, [refreshActiveCounts]);
+
+  const activeDialogProvider = useMemo(
+    () => members.find((m) => m.id === activeDialogProviderId) ?? null,
+    [members, activeDialogProviderId]
+  );
 
   const allSelected = members.length > 0 && selectedProviderIds.size === members.length;
 
@@ -768,6 +842,11 @@ function GroupMembersPanel({
               <TableHead>{t("providerName")}</TableHead>
               <TableHead className="w-[180px]">{t("providerType")}</TableHead>
               <TableHead className="w-[180px]">{t("effectivePriority")}</TableHead>
+              {stickyEnabled ? (
+                <TableHead className="w-[180px]">
+                  {t("advanced.activeUsers.columnHeader")}
+                </TableHead>
+              ) : null}
               <TableHead className="w-[88px]" />
             </TableRow>
           </TableHeader>
@@ -783,11 +862,29 @@ function GroupMembersPanel({
                 onSelectChange={(checked) => handleSelectMember(member.id, checked)}
                 onSaved={onSaved}
                 onRequestEditProvider={onRequestEditProvider}
+                stickyEnabled={stickyEnabled}
+                stickyCap={stickyCap}
+                activeCount={activeCounts[member.id] ?? 0}
+                onOpenActiveUsers={() => setActiveDialogProviderId(member.id)}
               />
             ))}
           </TableBody>
         </Table>
       </div>
+
+      {activeDialogProvider ? (
+        <StickyActiveUsersDialog
+          open={activeDialogProviderId !== null}
+          onOpenChange={(open) => {
+            if (!open) setActiveDialogProviderId(null);
+          }}
+          groupName={groupName}
+          providerId={activeDialogProvider.id}
+          providerName={activeDialogProvider.name}
+          cap={stickyCap}
+          onChanged={refreshActiveCounts}
+        />
+      ) : null}
 
       <ProviderBatchActions
         selectedCount={selectedProviderIds.size}
@@ -817,6 +914,10 @@ interface MemberRowProps {
   onSelectChange: (checked: boolean) => void;
   onSaved: () => void;
   onRequestEditProvider: (providerId: number) => void;
+  stickyEnabled: boolean;
+  stickyCap: number | null;
+  activeCount: number;
+  onOpenActiveUsers: () => void;
 }
 
 function MemberRow({
@@ -828,6 +929,10 @@ function MemberRow({
   onSelectChange,
   onSaved,
   onRequestEditProvider,
+  stickyEnabled,
+  stickyCap,
+  activeCount,
+  onOpenActiveUsers,
 }: MemberRowProps) {
   const t = useTranslations("settings.providers.providerGroups");
   const tTypes = useTranslations("settings.providers.types");
@@ -929,6 +1034,24 @@ function MemberRow({
           <span className="tabular-nums font-medium">{effectivePriority}</span>
         )}
       </TableCell>
+      {stickyEnabled ? (
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <span className="tabular-nums text-sm font-medium">
+              {activeCount}
+              <span className="text-muted-foreground"> / {stickyCap ?? "∞"}</span>
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs"
+              onClick={onOpenActiveUsers}
+            >
+              {t("advanced.activeUsers.viewButton")}
+            </Button>
+          </div>
+        </TableCell>
+      ) : null}
       <TableCell>
         {canEdit ? (
           <Button

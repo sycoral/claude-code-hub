@@ -45,6 +45,7 @@
   "openProviderEditor": "編輯供應商",
   "invalidStickyTtl": "黏性時長必須是 1-720（小時）之間的整數",
   "invalidMaxActiveUsers": "每帳號最多活躍用戶數必須是大於 0 的整數",
+  "invalidLoadSortMode": "負載排序方式無效",
   "advanced": {
     "title": "進階設定（用戶黏性 + 容量）",
     "stickyEnabled": {
@@ -59,6 +60,42 @@
       "label": "每帳號最多活躍用戶數",
       "placeholder": "留空表示不限",
       "helper": "組內每個帳號同時承載的活躍用戶上限；超限會落到組內其他帳號；全組都滿則回傳 503"
+    },
+    "loadSortMode": {
+      "label": "負載排序方式",
+      "helper": "黏性開啟後，min-priority tier 內如何選最空的帳號。預設按人頭數；想分散重度用戶時改用加權負載",
+      "headcount": {
+        "label": "按活躍用戶數",
+        "description": "每位用戶算 1 人，挑用戶數最少的帳號"
+      },
+      "weighted": {
+        "label": "按加權負載（按 token 用量）",
+        "description": "重度用戶算 3、中度 2、普通 1，挑總分最低的帳號；權重根據近 7 天 token 用量自動算"
+      }
+    },
+    "activeUsers": {
+      "columnHeader": "活躍用戶",
+      "viewButton": "檢視",
+      "dialogTitle": "{provider} 目前黏性用戶",
+      "dialogDesc": "分組「{group}」目前 {count} 位活躍用戶，帳號上限 {cap}",
+      "noCap": "無",
+      "loading": "載入中…",
+      "empty": "目前沒有活躍黏性用戶",
+      "colUser": "用戶",
+      "colWeight": "權重",
+      "colRemaining": "剩餘有效期",
+      "colAction": "操作",
+      "evict": "剔除",
+      "confirmEvict": "確認剔除",
+      "evictSuccess": "已剔除該用戶的黏性繫結",
+      "expired": "已過期",
+      "remainingHm": "{hours}h {minutes}m",
+      "remainingMinutes": "{minutes} 分鐘",
+      "remainingSeconds": "{seconds} 秒",
+      "weightHeavy": "重度",
+      "weightMedium": "中度",
+      "weightNormal": "普通",
+      "weightTooltip": "根據近 7 天 token 用量分位排名計算；僅在「按加權負載」模式下影響選號"
     }
   }
 }

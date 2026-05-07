@@ -50,7 +50,10 @@
     "provider_group": {
       "create": "プロバイダーグループ作成",
       "update": "プロバイダーグループ更新",
-      "delete": "プロバイダーグループ削除"
+      "delete": "プロバイダーグループ削除",
+      "sticky": {
+        "evict": "粘着バインディングを解除"
+      }
     },
     "system_settings": {
       "update": "システム設定更新"

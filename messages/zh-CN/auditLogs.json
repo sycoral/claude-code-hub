@@ -50,7 +50,10 @@
     "provider_group": {
       "create": "创建供应商分组",
       "update": "更新供应商分组",
-      "delete": "删除供应商分组"
+      "delete": "删除供应商分组",
+      "sticky": {
+        "evict": "剔除粘性绑定用户"
+      }
     },
     "system_settings": {
       "update": "更新系统设置"

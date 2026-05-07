@@ -45,6 +45,7 @@
   "openProviderEditor": "プロバイダーを編集",
   "invalidStickyTtl": "粘着時間は 1-720（時間）の整数で指定してください",
   "invalidMaxActiveUsers": "アカウントあたりの最大アクティブユーザー数は 0 より大きい整数で指定してください",
+  "invalidLoadSortMode": "負荷ソートモードが無効です",
   "advanced": {
     "title": "詳細設定（ユーザー粘着 + 容量）",
     "stickyEnabled": {
@@ -59,6 +60,42 @@
       "label": "アカウントあたりの最大アクティブユーザー数",
       "placeholder": "空欄＝無制限",
       "helper": "グループ内の各アカウントが同時に受け持つアクティブユーザー数の上限。超過すると他アカウントに振り分け、全アカウントが満杯なら 503 を返します"
+    },
+    "loadSortMode": {
+      "label": "負荷ソートモード",
+      "helper": "粘着が有効な場合、min-priority tier 内で最も空いているアカウントの選び方。デフォルトは人数；ヘビーユーザーを分散したい場合は加重負荷を選択",
+      "headcount": {
+        "label": "アクティブユーザー数で",
+        "description": "各ユーザーを 1 人として、ユーザー数が最少のアカウントを選ぶ"
+      },
+      "weighted": {
+        "label": "加重負荷（トークン使用量で）",
+        "description": "ヘビー＝3、ミドル＝2、通常＝1。合計が最低のアカウントを選ぶ。重みは過去 7 日間のトークン使用量から自動計算"
+      }
+    },
+    "activeUsers": {
+      "columnHeader": "アクティブユーザー",
+      "viewButton": "表示",
+      "dialogTitle": "{provider} の現在の粘着ユーザー",
+      "dialogDesc": "グループ「{group}」のアクティブユーザー {count} 名、アカウント上限 {cap}",
+      "noCap": "なし",
+      "loading": "読み込み中…",
+      "empty": "現在アクティブな粘着ユーザーはいません",
+      "colUser": "ユーザー",
+      "colWeight": "重み",
+      "colRemaining": "残り有効時間",
+      "colAction": "操作",
+      "evict": "削除",
+      "confirmEvict": "削除を確定",
+      "evictSuccess": "粘着バインディングを解除しました",
+      "expired": "期限切れ",
+      "remainingHm": "{hours}h {minutes}m",
+      "remainingMinutes": "{minutes} 分",
+      "remainingSeconds": "{seconds} 秒",
+      "weightHeavy": "ヘビー",
+      "weightMedium": "ミドル",
+      "weightNormal": "通常",
+      "weightTooltip": "過去 7 日間のトークン使用量ランクから算出；加重負荷モードでのみ選択に影響"
     }
   }
 }

@@ -30,6 +30,7 @@ function toProviderGroup(row: ProviderGroupRow): ProviderGroup {
     stickyEnabled: row.stickyEnabled,
     stickyTtlHours: row.stickyTtlHours,
     maxActiveUsersPerProvider: row.maxActiveUsersPerProvider ?? null,
+    loadSortMode: row.loadSortMode,
     createdAt: row.createdAt!,
     updatedAt: row.updatedAt!,
   };
@@ -131,6 +132,7 @@ export async function createProviderGroup(input: CreateProviderGroupInput): Prom
       ...(input.maxActiveUsersPerProvider !== undefined && {
         maxActiveUsersPerProvider: input.maxActiveUsersPerProvider,
       }),
+      ...(input.loadSortMode !== undefined && { loadSortMode: input.loadSortMode }),
     })
     .returning();
 
@@ -165,6 +167,9 @@ export async function updateProviderGroup(
   }
   if (input.maxActiveUsersPerProvider !== undefined) {
     setData.maxActiveUsersPerProvider = input.maxActiveUsersPerProvider;
+  }
+  if (input.loadSortMode !== undefined) {
+    setData.loadSortMode = input.loadSortMode;
   }
 
   const [row] = await executor
@@ -348,6 +353,7 @@ export async function getStickyConfig(
       stickyEnabled: providerGroups.stickyEnabled,
       stickyTtlHours: providerGroups.stickyTtlHours,
       maxActiveUsersPerProvider: providerGroups.maxActiveUsersPerProvider,
+      loadSortMode: providerGroups.loadSortMode,
     })
     .from(providerGroups)
     .where(eq(providerGroups.name, groupName))
@@ -359,6 +365,7 @@ export async function getStickyConfig(
     enabled: row.stickyEnabled,
     ttlSec: row.stickyTtlHours * 3600,
     cap: row.maxActiveUsersPerProvider ?? null,
+    loadSortMode: row.loadSortMode,
   };
 
   stickyConfigCache.set(groupName, {

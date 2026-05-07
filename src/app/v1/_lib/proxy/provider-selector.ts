@@ -9,6 +9,7 @@ import {
   clearSticky,
   countActiveUsers,
   getStickyProvider,
+  getWeightedActiveLoad,
   isUserCountedOn,
   refreshStickyTTL,
 } from "@/lib/sticky/user-group-sticky";
@@ -1232,12 +1233,20 @@ export class ProxyProviderResolver {
 
         // Load filter: keep only the least-loaded subset, then existing
         // weight/priority resolves ties. Skipped when only one candidate remains.
+        //
+        // loadSortMode picks how "load" is measured:
+        //   "headcount" — distinct active user count (default, original behavior)
+        //   "weighted"  — sum of per-user load-weights derived from the
+        //                 past-7-days token leaderboard, so heavy users get
+        //                 spread across providers instead of clustering on one.
         if (topPriorityProviders.length > 1) {
-          const counts = await Promise.all(
-            topPriorityProviders.map((p) => countActiveUsers(p.id, stickyGroup))
+          const loadFn =
+            stickyCfg.loadSortMode === "weighted" ? getWeightedActiveLoad : countActiveUsers;
+          const loads = await Promise.all(
+            topPriorityProviders.map((p) => loadFn(p.id, stickyGroup))
           );
-          const minCount = Math.min(...counts);
-          topPriorityProviders = topPriorityProviders.filter((_, i) => counts[i] === minCount);
+          const minLoad = Math.min(...loads);
+          topPriorityProviders = topPriorityProviders.filter((_, i) => loads[i] === minLoad);
         }
       }
     }
