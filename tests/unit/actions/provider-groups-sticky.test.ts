@@ -5,6 +5,7 @@ const mockListActiveUsers = vi.hoisted(() => vi.fn());
 const mockClearSticky = vi.hoisted(() => vi.fn());
 const mockCountActiveUsers = vi.hoisted(() => vi.fn());
 const mockGetUserLoadWeights = vi.hoisted(() => vi.fn());
+const mockGetGroupWeightThresholds = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/auth", () => ({
   getSession: mockGetSession,
@@ -22,6 +23,12 @@ vi.mock("@/lib/sticky/user-group-sticky", () => ({
 
 vi.mock("@/lib/sticky/load-weight", () => ({
   getUserLoadWeights: mockGetUserLoadWeights,
+  getGroupWeightThresholds: mockGetGroupWeightThresholds,
+  classifyLoadTier: (weight: number, t: { heavyWeight: number; mediumWeight: number }) => {
+    if (weight >= t.heavyWeight && t.heavyWeight > 1) return "heavy";
+    if (weight >= t.mediumWeight && t.mediumWeight > 1) return "medium";
+    return "normal";
+  },
   NORMAL_WEIGHT: 1,
 }));
 
@@ -53,6 +60,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetSession.mockResolvedValue({ user: { id: 1, role: "admin" } });
   mockGetUserLoadWeights.mockResolvedValue(new Map<number, number>());
+  mockGetGroupWeightThresholds.mockResolvedValue({
+    heavyWeight: 5,
+    mediumWeight: 3,
+    providerCount: 5,
+  });
 });
 
 describe("listStickyActiveUsers", () => {
@@ -87,10 +99,11 @@ describe("listStickyActiveUsers", () => {
       { id: 7, name: "alice" },
       { id: 8, name: "bob" },
     ]);
+    // N=5 group: heavy=5, medium=3, normal=1
     mockGetUserLoadWeights.mockResolvedValueOnce(
       new Map<number, number>([
-        [7, 3], // heavy
-        [8, 2], // medium
+        [7, 5], // heavy
+        [8, 3], // medium
         // 9 missing → defaults to NORMAL_WEIGHT (1)
       ])
     );
@@ -98,9 +111,27 @@ describe("listStickyActiveUsers", () => {
     const res = await listStickyActiveUsers("team-a", 42);
     expect(res.ok).toBe(true);
     expect(res.ok && res.data).toEqual([
-      { uid: 7, name: "alice", expireAtMs: 1700000005000, loadWeight: 3 },
-      { uid: 8, name: "bob", expireAtMs: 1700000010000, loadWeight: 2 },
-      { uid: 9, name: null, expireAtMs: 1700000020000, loadWeight: 1 },
+      {
+        uid: 7,
+        name: "alice",
+        expireAtMs: 1700000005000,
+        loadWeight: 5,
+        loadTier: "heavy",
+      },
+      {
+        uid: 8,
+        name: "bob",
+        expireAtMs: 1700000010000,
+        loadWeight: 3,
+        loadTier: "medium",
+      },
+      {
+        uid: 9,
+        name: null,
+        expireAtMs: 1700000020000,
+        loadWeight: 1,
+        loadTier: "normal",
+      },
     ]);
   });
 });

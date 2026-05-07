@@ -14,7 +14,13 @@ import {
   serializePublicStatusDescription,
 } from "@/lib/public-status/config";
 import { exceedsProviderGroupDescriptionLimit } from "@/lib/public-status/description-limit";
-import { getUserLoadWeights, NORMAL_WEIGHT } from "@/lib/sticky/load-weight";
+import {
+  classifyLoadTier,
+  getGroupWeightThresholds,
+  getUserLoadWeights,
+  type LoadTier,
+  NORMAL_WEIGHT,
+} from "@/lib/sticky/load-weight";
 import { clearSticky, countActiveUsers, listActiveUsers } from "@/lib/sticky/user-group-sticky";
 import { ERROR_CODES } from "@/lib/utils/error-messages";
 import {
@@ -401,6 +407,7 @@ export interface StickyActiveUser {
   name: string | null;
   expireAtMs: number;
   loadWeight: number;
+  loadTier: LoadTier;
 }
 
 /**
@@ -431,21 +438,26 @@ export async function listStickyActiveUsers(
     }
 
     const uids = entries.map((entry) => entry.uid);
-    const [userRows, weights] = await Promise.all([
+    const [userRows, weights, thresholds] = await Promise.all([
       db
         .select({ id: usersTable.id, name: usersTable.name })
         .from(usersTable)
         .where(inArray(usersTable.id, uids)),
-      getUserLoadWeights(),
+      getUserLoadWeights(groupName),
+      getGroupWeightThresholds(groupName),
     ]);
     const nameById = new Map(userRows.map((row) => [row.id, row.name] as const));
 
-    const data: StickyActiveUser[] = entries.map((entry) => ({
-      uid: entry.uid,
-      name: nameById.get(entry.uid) ?? null,
-      expireAtMs: entry.expireAtMs,
-      loadWeight: weights.get(entry.uid) ?? NORMAL_WEIGHT,
-    }));
+    const data: StickyActiveUser[] = entries.map((entry) => {
+      const loadWeight = weights.get(entry.uid) ?? NORMAL_WEIGHT;
+      return {
+        uid: entry.uid,
+        name: nameById.get(entry.uid) ?? null,
+        expireAtMs: entry.expireAtMs,
+        loadWeight,
+        loadTier: classifyLoadTier(loadWeight, thresholds),
+      };
+    });
     return { ok: true, data };
   } catch (error) {
     logger.error("Failed to list sticky active users:", error);

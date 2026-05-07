@@ -262,7 +262,7 @@ export async function getWeightedActiveLoad(pid: number, group: string): Promise
   const entries = await listActiveUsers(pid, group);
   if (entries.length === 0) return 0;
 
-  const weights = await getUserLoadWeights();
+  const weights = await getUserLoadWeights(group);
   let total = 0;
   for (const entry of entries) {
     total += weights.get(entry.uid) ?? NORMAL_WEIGHT;

@@ -70,7 +70,7 @@
       },
       "weighted": {
         "label": "By weighted load (token usage)",
-        "description": "Heavy=3, medium=2, normal=1; pick the account with the lowest total. Weights derived from past-7-days token usage"
+        "description": "With N enabled accounts in group: top-N users heavy (weight N), next-N medium (weight ceil(N/2)), rest normal (1). Automatically spreads heavy users across accounts"
       }
     },
     "activeUsers": {
@@ -95,7 +95,7 @@
       "weightHeavy": "Heavy",
       "weightMedium": "Medium",
       "weightNormal": "Normal",
-      "weightTooltip": "Derived from past-7-days token-usage rank; only affects selection in weighted-load mode"
+      "weightTooltip": "Derived from this group's past-7-days token-usage rank; bucket sizes scale with the group's enabled-account count. Only affects selection in weighted-load mode"
     }
   }
 }

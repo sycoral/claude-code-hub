@@ -70,7 +70,7 @@
       },
       "weighted": {
         "label": "按加权负载（按 token 用量）",
-        "description": "重度用户算 3、中度 2、普通 1，挑总分最低的账号；权重根据近 7 天 token 用量自动算"
+        "description": "组内 N 个账号 → 排名前 N 重度（权重=N）、再前 N 中度（权重=⌈N/2⌉）、其余普通（=1）；自动让重度用户散开"
       }
     },
     "activeUsers": {
@@ -95,7 +95,7 @@
       "weightHeavy": "重度",
       "weightMedium": "中度",
       "weightNormal": "普通",
-      "weightTooltip": "根据近 7 天 token 用量分位排名计算；仅在「按加权负载」模式下影响选号"
+      "weightTooltip": "根据近 7 天 token 用量在组内排名计算；分位与组内启用账号数挂钩；仅在「按加权负载」模式下影响选号"
     }
   }
 }

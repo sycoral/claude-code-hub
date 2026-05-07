@@ -26,23 +26,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-const HEAVY_THRESHOLD = 3;
-const MEDIUM_THRESHOLD = 2;
-
-function weightBadgeClass(weight: number): string {
-  if (weight >= HEAVY_THRESHOLD) {
-    return "bg-destructive/10 text-destructive border border-destructive/30";
+function tierBadgeClass(tier: StickyActiveUser["loadTier"]): string {
+  switch (tier) {
+    case "heavy":
+      return "bg-destructive/10 text-destructive border border-destructive/30";
+    case "medium":
+      return "bg-amber-500/10 text-amber-700 border border-amber-500/30 dark:text-amber-400";
+    default:
+      return "bg-muted text-muted-foreground border border-border";
   }
-  if (weight >= MEDIUM_THRESHOLD) {
-    return "bg-amber-500/10 text-amber-700 border border-amber-500/30 dark:text-amber-400";
-  }
-  return "bg-muted text-muted-foreground border border-border";
 }
 
-function weightLabel(weight: number, t: ReturnType<typeof useTranslations>): string {
-  if (weight >= HEAVY_THRESHOLD) return t("weightHeavy");
-  if (weight >= MEDIUM_THRESHOLD) return t("weightMedium");
-  return t("weightNormal");
+function tierLabel(
+  tier: StickyActiveUser["loadTier"],
+  t: ReturnType<typeof useTranslations>
+): string {
+  switch (tier) {
+    case "heavy":
+      return t("weightHeavy");
+    case "medium":
+      return t("weightMedium");
+    default:
+      return t("weightNormal");
+  }
 }
 
 interface Props {
@@ -172,12 +178,12 @@ export function StickyActiveUsersDialog({
                       </TableCell>
                       <TableCell>
                         <span
-                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${weightBadgeClass(
-                            item.loadWeight
+                          className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${tierBadgeClass(
+                            item.loadTier
                           )}`}
                           title={t("weightTooltip")}
                         >
-                          {weightLabel(item.loadWeight, t)}
+                          {tierLabel(item.loadTier, t)}
                           <span className="ml-1 tabular-nums opacity-70">×{item.loadWeight}</span>
                         </span>
                       </TableCell>

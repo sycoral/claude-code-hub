@@ -494,7 +494,7 @@ export function ProviderGroupTab({
       )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => !open && closeDialog()}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editingGroup ? t("editGroup") : t("addGroup")}</DialogTitle>
             <DialogDescription>{t("description")}</DialogDescription>

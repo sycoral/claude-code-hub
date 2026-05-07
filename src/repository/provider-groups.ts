@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/drizzle/db";
 import { providerGroups, providers } from "@/drizzle/schema";
 import { PROVIDER_GROUP } from "@/lib/constants/provider.constants";
@@ -197,6 +197,27 @@ export async function countProvidersUsingGroup(name: string): Promise<number> {
     .select({ groupTag: providers.groupTag })
     .from(providers)
     .where(isNull(providers.deletedAt));
+
+  let count = 0;
+  for (const row of rows) {
+    const groups = parseProviderGroups(row.groupTag);
+    if (groups.includes(name)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Count enabled (and non-deleted) providers that include the given group in
+ * their groupTag. Used by the weighted load-balancer to size weight buckets
+ * dynamically (heavy = top N, medium = top 2N, where N = enabled-providers-in-group).
+ */
+export async function countEnabledProvidersInGroup(name: string): Promise<number> {
+  const rows = await db
+    .select({ groupTag: providers.groupTag })
+    .from(providers)
+    .where(and(isNull(providers.deletedAt), eq(providers.isEnabled, true)));
 
   let count = 0;
   for (const row of rows) {

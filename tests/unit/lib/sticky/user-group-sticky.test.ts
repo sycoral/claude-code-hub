@@ -77,8 +77,6 @@ const mockGetUserLoadWeights = vi.fn();
 vi.mock("@/lib/sticky/load-weight", () => ({
   getUserLoadWeights: mockGetUserLoadWeights,
   NORMAL_WEIGHT: 1,
-  HEAVY_WEIGHT: 3,
-  MEDIUM_WEIGHT: 2,
   clearLoadWeightCache: () => {},
 }));
 
