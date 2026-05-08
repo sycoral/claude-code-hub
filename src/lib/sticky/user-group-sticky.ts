@@ -6,19 +6,34 @@ import { getUserLoadWeights, NORMAL_WEIGHT } from "@/lib/sticky/load-weight";
 
 // User-group sticky binding (V1, all-Redis state).
 //
-// Two structures:
-//   `user:{uid}:group:{group}:provider` — string holding providerId.
+// Three structures:
+//   `user:{uid}:group:{group}:provider` — string holding providerId (HARD).
 //       String-level TTL = sticky window (rolling, refreshed on hit).
+//       Presence pairs with the active-users ZSet entry; this is what
+//       counts against the per-provider cap.
 //   `provider:{pid}:group:{group}:active_users` — ZSet of users currently
 //       sticky on that provider in that group. score = expiry epoch ms,
 //       member = stringified uid. ZSet itself has no key TTL — entries are
 //       lazy-cleaned via ZREMRANGEBYSCORE on read paths.
+//   `user:{uid}:group:{group}:pref` — string holding the *last* providerId
+//       (SOFT preference). 24h rolling TTL, NOT counted against cap. Used
+//       as a tiebreaker when the hard binding has expired (e.g. after a
+//       lunch break or overnight) so the user has a chance to land back on
+//       the same provider, preserving prompt cache — but only when that
+//       provider already passes the cap+load filter, so weighted load
+//       balancing is not subverted.
 //
 // All operations soft-fail when Redis is unavailable, mirroring SessionManager.
 
 const userKey = (uid: number, group: string) => `user:${uid}:group:${group}:provider`;
 const activeUsersKey = (pid: number, group: string) =>
   `provider:${pid}:group:${group}:active_users`;
+const prefKey = (uid: number, group: string) => `user:${uid}:group:${group}:pref`;
+
+// Soft preference TTL. Hardcoded — long enough to span lunch breaks, overnight,
+// and most weekends, short enough that genuinely-inactive users get forgotten
+// without manual cleanup.
+const PREF_TTL_SEC = 24 * 60 * 60;
 
 function isRedisReady(
   redis: ReturnType<typeof getRedisClient>
@@ -47,11 +62,32 @@ export async function getStickyProvider(uid: number, group: string): Promise<num
 }
 
 /**
+ * Read the user's soft preference provider for a group. Survives the hard
+ * binding TTL (24h vs. configurable hard TTL); used as a tiebreaker by the
+ * selector when the hard binding has expired.
+ */
+export async function getStickyPreference(uid: number, group: string): Promise<number | null> {
+  const redis = getRedisClient();
+  if (!isRedisReady(redis)) return null;
+
+  try {
+    const value = await redis.get(prefKey(uid, group));
+    if (!value) return null;
+    const id = Number.parseInt(value, 10);
+    return Number.isFinite(id) ? id : null;
+  } catch (error) {
+    logger.error("UserGroupSticky: getStickyPreference failed", { error, uid, group });
+    return null;
+  }
+}
+
+/**
  * Bind user → provider for the given group with the given TTL (seconds).
- * Writes both the user binding key and adds the user to the provider's
- * active-users ZSet with score = nowMs + ttlSec * 1000.
+ * Writes the user binding key, adds the user to the provider's active-users
+ * ZSet with score = nowMs + ttlSec * 1000, and refreshes the soft preference
+ * key (24h TTL).
  *
- * Uses a pipeline so the two writes share one round-trip. Not strictly atomic
+ * Uses a pipeline so the writes share one round-trip. Not strictly atomic
  * across keys (would require Lua), but Redis is single-threaded so the
  * worst-case interleave is bounded.
  *
@@ -72,6 +108,7 @@ export async function bindSticky(
     const pipeline = redis.pipeline();
     pipeline.set(userKey(uid, group), providerId.toString(), "EX", ttlSec);
     pipeline.zadd(activeUsersKey(providerId, group), expireAtMs, uid.toString());
+    pipeline.set(prefKey(uid, group), providerId.toString(), "EX", PREF_TTL_SEC);
     const results = await pipeline.exec();
     if (!results) return false;
     for (const [err] of results) {
@@ -120,6 +157,7 @@ export async function refreshStickyTTL(
     const pipeline = redis.pipeline();
     pipeline.expire(userKey(uid, group), ttlSec);
     pipeline.zadd(activeUsersKey(providerId, group), "GT", expireAtMs, uid.toString());
+    pipeline.set(prefKey(uid, group), providerId.toString(), "EX", PREF_TTL_SEC);
     await pipeline.exec();
   } catch (error) {
     logger.error("UserGroupSticky: refreshStickyTTL failed", {
@@ -136,6 +174,11 @@ export async function refreshStickyTTL(
  * from the provider's active-users ZSet — caller passes providerId when known
  * (e.g. when invalidating after a hard-failure on a known provider).
  *
+ * Hard-failure semantics: also drops the soft preference key, so an evicted
+ * user does not flow back to a provider they were just removed from. Soft
+ * failures (circuit / cost limit / schedule) MUST NOT call this — they leave
+ * the binding intact via fall-through.
+ *
  * If providerId is omitted, the ZSet is not touched here; in that case the
  * stale entry will be cleaned up lazily by countActiveUsers.
  */
@@ -149,6 +192,7 @@ export async function clearSticky(uid: number, group: string, providerId?: numbe
     if (providerId !== undefined) {
       pipeline.zrem(activeUsersKey(providerId, group), uid.toString());
     }
+    pipeline.del(prefKey(uid, group));
     await pipeline.exec();
   } catch (error) {
     logger.error("UserGroupSticky: clearSticky failed", {

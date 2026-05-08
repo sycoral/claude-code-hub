@@ -160,25 +160,76 @@ describe("user-group-sticky", () => {
     });
   });
 
+  // ---------- getStickyPreference ----------
+
+  describe("getStickyPreference", () => {
+    it("returns providerId when preference exists", async () => {
+      const { getStickyPreference } = await import("@/lib/sticky/user-group-sticky");
+      redisClientRef!.get.mockResolvedValueOnce("42");
+
+      const result = await getStickyPreference(7, "team-a");
+
+      expect(redisClientRef!.get).toHaveBeenCalledWith("user:7:group:team-a:pref");
+      expect(result).toBe(42);
+    });
+
+    it("returns null when no preference exists", async () => {
+      const { getStickyPreference } = await import("@/lib/sticky/user-group-sticky");
+      redisClientRef!.get.mockResolvedValueOnce(null);
+
+      expect(await getStickyPreference(7, "team-a")).toBeNull();
+    });
+
+    it("returns null when stored value is not a number", async () => {
+      const { getStickyPreference } = await import("@/lib/sticky/user-group-sticky");
+      redisClientRef!.get.mockResolvedValueOnce("not-a-number");
+
+      expect(await getStickyPreference(7, "team-a")).toBeNull();
+    });
+
+    it("returns null when redis is not ready", async () => {
+      redisClientRef = null;
+      const { getStickyPreference } = await import("@/lib/sticky/user-group-sticky");
+
+      expect(await getStickyPreference(7, "team-a")).toBeNull();
+    });
+
+    it("returns null on redis throw", async () => {
+      const { getStickyPreference } = await import("@/lib/sticky/user-group-sticky");
+      redisClientRef!.get.mockRejectedValueOnce(new Error("boom"));
+
+      expect(await getStickyPreference(7, "team-a")).toBeNull();
+    });
+  });
+
   // ---------- bindSticky ----------
 
   describe("bindSticky", () => {
-    it("writes both the user binding and the provider ZSet entry", async () => {
+    it("writes the user binding, ZSet entry, and 24h preference key", async () => {
       const { bindSticky } = await import("@/lib/sticky/user-group-sticky");
 
       const ok = await bindSticky(7, "team-a", 42, 3600);
 
       expect(ok).toBe(true);
+      // Hard binding: short configured TTL.
       expect(lastPipeline!.set).toHaveBeenCalledWith(
         "user:7:group:team-a:provider",
         "42",
         "EX",
         3600
       );
+      // Active-users ZSet.
       expect(lastPipeline!.zadd).toHaveBeenCalledWith(
         "provider:42:group:team-a:active_users",
         NOW_MS + 3600 * 1000,
         "7"
+      );
+      // Soft preference: independent 24h TTL, regardless of hard TTL.
+      expect(lastPipeline!.set).toHaveBeenCalledWith(
+        "user:7:group:team-a:pref",
+        "42",
+        "EX",
+        24 * 60 * 60
       );
     });
 
@@ -214,7 +265,7 @@ describe("user-group-sticky", () => {
   // ---------- refreshStickyTTL ----------
 
   describe("refreshStickyTTL", () => {
-    it("extends user-key TTL and ZADD GT to raise score", async () => {
+    it("extends user-key TTL, ZADD GT, and refreshes 24h preference key", async () => {
       const { refreshStickyTTL } = await import("@/lib/sticky/user-group-sticky");
 
       await refreshStickyTTL(7, "team-a", 42, 3600);
@@ -225,6 +276,13 @@ describe("user-group-sticky", () => {
         "GT",
         NOW_MS + 3600 * 1000,
         "7"
+      );
+      // Pref TTL is its own 24h window, independent of the hard sticky TTL.
+      expect(lastPipeline!.set).toHaveBeenCalledWith(
+        "user:7:group:team-a:pref",
+        "42",
+        "EX",
+        24 * 60 * 60
       );
     });
 
@@ -247,21 +305,23 @@ describe("user-group-sticky", () => {
   // ---------- clearSticky ----------
 
   describe("clearSticky", () => {
-    it("deletes the user key and removes ZSet entry when providerId is given", async () => {
+    it("deletes user key, ZSet entry, and pref key when providerId is given", async () => {
       const { clearSticky } = await import("@/lib/sticky/user-group-sticky");
 
       await clearSticky(7, "team-a", 42);
 
       expect(lastPipeline!.del).toHaveBeenCalledWith("user:7:group:team-a:provider");
       expect(lastPipeline!.zrem).toHaveBeenCalledWith("provider:42:group:team-a:active_users", "7");
+      expect(lastPipeline!.del).toHaveBeenCalledWith("user:7:group:team-a:pref");
     });
 
-    it("only deletes the user key when providerId is omitted", async () => {
+    it("deletes user key and pref key when providerId is omitted", async () => {
       const { clearSticky } = await import("@/lib/sticky/user-group-sticky");
 
       await clearSticky(7, "team-a");
 
       expect(lastPipeline!.del).toHaveBeenCalledWith("user:7:group:team-a:provider");
+      expect(lastPipeline!.del).toHaveBeenCalledWith("user:7:group:team-a:pref");
       expect(lastPipeline!.zrem).not.toHaveBeenCalled();
     });
 

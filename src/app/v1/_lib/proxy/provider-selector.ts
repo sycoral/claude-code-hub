@@ -8,6 +8,7 @@ import {
   bindSticky,
   clearSticky,
   countActiveUsers,
+  getStickyPreference,
   getStickyProvider,
   getWeightedActiveLoad,
   isUserCountedOn,
@@ -1247,6 +1248,21 @@ export class ProxyProviderResolver {
           );
           const minLoad = Math.min(...loads);
           topPriorityProviders = topPriorityProviders.filter((_, i) => loads[i] === minLoad);
+        }
+
+        // Soft-preference tiebreaker (lowest priority, runs after cap+load).
+        // When the hard binding has expired but the user has a recent preference
+        // in this group, prefer that provider — but ONLY if it already survived
+        // cap+load filtering. Never overrides load balancing; only tiebreaks
+        // among already-equal candidates.
+        if (topPriorityProviders.length > 1) {
+          const prefId = await getStickyPreference(stickyUid, stickyGroup);
+          if (prefId != null) {
+            const prefMatch = topPriorityProviders.find((p) => p.id === prefId);
+            if (prefMatch) {
+              topPriorityProviders = [prefMatch];
+            }
+          }
         }
       }
     }
