@@ -1,20 +1,24 @@
 import "server-only";
 
 import { logger } from "@/lib/logger";
-import { getLeaderboardWithCache } from "@/lib/redis/leaderboard-cache";
-import type { LeaderboardEntry } from "@/repository/leaderboard";
+import { findWeeklyGroupScopedUsage, type GroupScopedUsageEntry } from "@/repository/leaderboard";
 import { countEnabledProvidersInGroup } from "@/repository/provider-groups";
-import { getSystemSettings } from "@/repository/system-config";
 
-// User load weight derived from past-7-days token usage, scoped per provider
-// group, with bucket sizes dynamically tied to the number of accounts in the
-// group. Used by the sticky load-balancer (when loadSortMode = "weighted") to
-// spread heavy users across providers — the goal is "every account ends up
+// User load weight derived from this-calendar-week token usage on the group's
+// own accounts, with bucket sizes dynamically tied to the number of accounts in
+// the group. Used by the sticky load-balancer (when loadSortMode = "weighted")
+// to spread heavy users across providers — the goal is "every account ends up
 // hosting at most one heavy user", not just "users are evenly counted".
 //
 // Why per-group: a user's "heaviness" only matters relative to the others
 // competing for accounts in the same group. Ranking globally would tag a
 // uniformly-heavy team as all-weight-3 and silently degrade back to headcount.
+//
+// Why scoped to *this group's accounts* (not the user's total weekly usage):
+// a single user can run CC against one group and Codex against another. Counting
+// the union would inflate weight for groups they barely touch and starve
+// groups they actually live on. Filtering on `providers.groupTag` keeps the
+// signal scoped to "load this user is putting on this group's accounts".
 //
 // Why account-count-aware bucket sizes: a fixed top-5%/top-20% threshold
 // doesn't match the actual goal. With N accounts:
@@ -34,11 +38,12 @@ import { getSystemSettings } from "@/repository/system-config";
 //   - N=0: defensive fallback to legacy 5%/20% with weights 3/2/1 (group has
 //     no enabled accounts, weight will not actually drive selection).
 //
-// Caching: the leaderboard query has its own 60s Redis cache + lock; we add a
-// 5-minute in-memory cache (per group) on top so the typical selection path is
-// O(1). N (enabled-providers-in-group) is captured at compute time and baked
-// into the cached map; if you disable an account, the change takes effect
-// after at most 5 minutes.
+// Caching: 5-minute in-memory cache (per group) + in-flight dedupe, so the
+// typical selection path is O(1) lookup against the map. The underlying DB
+// query runs at most once per group per Node process per 5 minutes. N
+// (enabled-providers-in-group) is captured at compute time and baked into the
+// cached map; if you disable an account, the change takes effect after at most
+// 5 minutes.
 
 export const NORMAL_WEIGHT = 1;
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -75,15 +80,10 @@ export async function getUserLoadWeights(groupName: string): Promise<Map<number,
 
   const promise = (async () => {
     try {
-      const [settings, providerCount] = await Promise.all([
-        getSystemSettings(),
+      const [providerCount, entries] = await Promise.all([
         countEnabledProvidersInGroup(groupName),
+        findWeeklyGroupScopedUsage(groupName),
       ]);
-      const currency = settings?.currencyDisplay ?? "USD";
-      const data = await getLeaderboardWithCache("weekly", currency, "user", undefined, {
-        userGroups: [groupName],
-      });
-      const entries = data as LeaderboardEntry[];
 
       const map = computeWeightMap(entries, providerCount);
       cacheByGroup.set(groupName, { map, cachedAt: Date.now() });
@@ -175,7 +175,10 @@ export function classifyLoadTier(
  * ideal balanced placement (1 heavy + 2 mediums + a few normals per account)
  * a local minimum of total weight.
  */
-function computeWeightMap(entries: LeaderboardEntry[], providerCount: number): Map<number, number> {
+function computeWeightMap(
+  entries: GroupScopedUsageEntry[],
+  providerCount: number
+): Map<number, number> {
   const map = new Map<number, number>();
   if (entries.length === 0) return map;
 

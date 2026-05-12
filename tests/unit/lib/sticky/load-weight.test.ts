@@ -1,15 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetLeaderboardWithCache = vi.fn();
-const mockGetSystemSettings = vi.fn();
+const mockFindWeeklyGroupScopedUsage = vi.fn();
 const mockCountEnabledProvidersInGroup = vi.fn();
 
-vi.mock("@/lib/redis/leaderboard-cache", () => ({
-  getLeaderboardWithCache: mockGetLeaderboardWithCache,
-}));
-
-vi.mock("@/repository/system-config", () => ({
-  getSystemSettings: mockGetSystemSettings,
+vi.mock("@/repository/leaderboard", () => ({
+  findWeeklyGroupScopedUsage: mockFindWeeklyGroupScopedUsage,
 }));
 
 vi.mock("@/repository/provider-groups", () => ({
@@ -22,7 +17,6 @@ vi.mock("@/lib/logger", () => ({
 
 beforeEach(async () => {
   vi.resetAllMocks();
-  mockGetSystemSettings.mockResolvedValue({ currencyDisplay: "USD" });
   mockCountEnabledProvidersInGroup.mockResolvedValue(5); // sensible default
   const { clearLoadWeightCache } = await import("@/lib/sticky/load-weight");
   clearLoadWeightCache();
@@ -34,9 +28,6 @@ afterEach(() => {
 
 const entry = (userId: number, totalTokens: number) => ({
   userId,
-  userName: `u${userId}`,
-  totalRequests: 1,
-  totalCost: 0,
   totalTokens,
 });
 
@@ -85,7 +76,7 @@ describe("load-weight", () => {
       // N=5 → top 5 heavy (weight 5), next 5 medium (weight ceil(5/2)=3), rest normal (1)
       mockCountEnabledProvidersInGroup.mockResolvedValueOnce(5);
       const entries = Array.from({ length: 20 }, (_, i) => entry(i + 1, (20 - i) * 1_000_000));
-      mockGetLeaderboardWithCache.mockResolvedValueOnce(entries);
+      mockFindWeeklyGroupScopedUsage.mockResolvedValueOnce(entries);
 
       const { getUserLoadWeights, NORMAL_WEIGHT } = await import("@/lib/sticky/load-weight");
       const weights = await getUserLoadWeights("team-a");
@@ -103,7 +94,7 @@ describe("load-weight", () => {
 
     it("filters out users with zero totalTokens", async () => {
       const entries = [entry(1, 1_000), entry(2, 0), entry(3, 0)];
-      mockGetLeaderboardWithCache.mockResolvedValueOnce(entries);
+      mockFindWeeklyGroupScopedUsage.mockResolvedValueOnce(entries);
 
       const { getUserLoadWeights } = await import("@/lib/sticky/load-weight");
       const weights = await getUserLoadWeights("team-a");
@@ -114,7 +105,7 @@ describe("load-weight", () => {
     });
 
     it("returns empty map when leaderboard is empty", async () => {
-      mockGetLeaderboardWithCache.mockResolvedValueOnce([]);
+      mockFindWeeklyGroupScopedUsage.mockResolvedValueOnce([]);
 
       const { getUserLoadWeights } = await import("@/lib/sticky/load-weight");
       const weights = await getUserLoadWeights("team-a");
@@ -125,7 +116,7 @@ describe("load-weight", () => {
       mockCountEnabledProvidersInGroup.mockResolvedValueOnce(0);
       // 20 users → ceil(20*0.05)=1 heavy(=3), ceil(20*0.2)=4 → 3 more medium(=2), rest normal(=1)
       const entries = Array.from({ length: 20 }, (_, i) => entry(i + 1, (20 - i) * 1_000_000));
-      mockGetLeaderboardWithCache.mockResolvedValueOnce(entries);
+      mockFindWeeklyGroupScopedUsage.mockResolvedValueOnce(entries);
 
       const { getUserLoadWeights } = await import("@/lib/sticky/load-weight");
       const weights = await getUserLoadWeights("orphan-group");
@@ -141,7 +132,7 @@ describe("load-weight", () => {
       vi.setSystemTime(new Date(2026, 0, 1));
 
       mockCountEnabledProvidersInGroup.mockResolvedValue(3);
-      mockGetLeaderboardWithCache.mockResolvedValue([entry(1, 1000)]);
+      mockFindWeeklyGroupScopedUsage.mockResolvedValue([entry(1, 1000)]);
 
       const { getUserLoadWeights } = await import("@/lib/sticky/load-weight");
 
@@ -149,19 +140,19 @@ describe("load-weight", () => {
       await getUserLoadWeights("team-a");
       await getUserLoadWeights("team-a");
 
-      expect(mockGetLeaderboardWithCache).toHaveBeenCalledTimes(1);
+      expect(mockFindWeeklyGroupScopedUsage).toHaveBeenCalledTimes(1);
 
       vi.advanceTimersByTime(4 * 60 * 1000);
       await getUserLoadWeights("team-a");
-      expect(mockGetLeaderboardWithCache).toHaveBeenCalledTimes(1);
+      expect(mockFindWeeklyGroupScopedUsage).toHaveBeenCalledTimes(1);
 
       vi.advanceTimersByTime(2 * 60 * 1000);
       await getUserLoadWeights("team-a");
-      expect(mockGetLeaderboardWithCache).toHaveBeenCalledTimes(2);
+      expect(mockFindWeeklyGroupScopedUsage).toHaveBeenCalledTimes(2);
     });
 
     it("returns empty map and caches it on leaderboard error (graceful fallback)", async () => {
-      mockGetLeaderboardWithCache.mockRejectedValueOnce(new Error("boom"));
+      mockFindWeeklyGroupScopedUsage.mockRejectedValueOnce(new Error("boom"));
 
       const { getUserLoadWeights, NORMAL_WEIGHT } = await import("@/lib/sticky/load-weight");
       const weights = await getUserLoadWeights("team-a");
@@ -175,7 +166,7 @@ describe("load-weight", () => {
       const pending = new Promise<unknown>((resolve) => {
         resolveFn = resolve;
       });
-      mockGetLeaderboardWithCache.mockReturnValueOnce(pending);
+      mockFindWeeklyGroupScopedUsage.mockReturnValueOnce(pending);
 
       const { getUserLoadWeights } = await import("@/lib/sticky/load-weight");
       const p1 = getUserLoadWeights("team-a");
@@ -185,23 +176,21 @@ describe("load-weight", () => {
       resolveFn([entry(1, 1000)]);
       await Promise.all([p1, p2, p3]);
 
-      expect(mockGetLeaderboardWithCache).toHaveBeenCalledTimes(1);
+      expect(mockFindWeeklyGroupScopedUsage).toHaveBeenCalledTimes(1);
     });
 
-    it("passes the group name as a userGroups filter to the leaderboard", async () => {
-      mockGetLeaderboardWithCache.mockResolvedValueOnce([entry(1, 1000)]);
+    it("passes the group name to the group-scoped usage query", async () => {
+      mockFindWeeklyGroupScopedUsage.mockResolvedValueOnce([entry(1, 1000)]);
 
       const { getUserLoadWeights } = await import("@/lib/sticky/load-weight");
       await getUserLoadWeights("team-a");
 
-      expect(mockGetLeaderboardWithCache).toHaveBeenCalledWith("weekly", "USD", "user", undefined, {
-        userGroups: ["team-a"],
-      });
+      expect(mockFindWeeklyGroupScopedUsage).toHaveBeenCalledWith("team-a");
     });
 
     it("caches per-group independently", async () => {
       mockCountEnabledProvidersInGroup.mockResolvedValueOnce(2).mockResolvedValueOnce(4);
-      mockGetLeaderboardWithCache
+      mockFindWeeklyGroupScopedUsage
         .mockResolvedValueOnce([entry(1, 9_000_000)])
         .mockResolvedValueOnce([entry(2, 9_000_000)]);
 
@@ -215,24 +204,24 @@ describe("load-weight", () => {
       expect(b.get(2)).toBe(4);
       expect(a.has(2)).toBe(false);
       expect(b.has(1)).toBe(false);
-      expect(mockGetLeaderboardWithCache).toHaveBeenCalledTimes(2);
+      expect(mockFindWeeklyGroupScopedUsage).toHaveBeenCalledTimes(2);
 
       await getUserLoadWeights("team-a");
       await getUserLoadWeights("team-b");
-      expect(mockGetLeaderboardWithCache).toHaveBeenCalledTimes(2);
+      expect(mockFindWeeklyGroupScopedUsage).toHaveBeenCalledTimes(2);
     });
 
     it("returns empty map for empty group name", async () => {
       const { getUserLoadWeights } = await import("@/lib/sticky/load-weight");
       const weights = await getUserLoadWeights("");
       expect(weights.size).toBe(0);
-      expect(mockGetLeaderboardWithCache).not.toHaveBeenCalled();
+      expect(mockFindWeeklyGroupScopedUsage).not.toHaveBeenCalled();
     });
   });
 
   describe("getUserLoadWeight (single-user lookup)", () => {
     it("returns NORMAL_WEIGHT for users not in the leaderboard", async () => {
-      mockGetLeaderboardWithCache.mockResolvedValueOnce([entry(1, 1000)]);
+      mockFindWeeklyGroupScopedUsage.mockResolvedValueOnce([entry(1, 1000)]);
 
       const { getUserLoadWeight, NORMAL_WEIGHT } = await import("@/lib/sticky/load-weight");
       expect(await getUserLoadWeight(999, "team-a")).toBe(NORMAL_WEIGHT);
@@ -241,7 +230,7 @@ describe("load-weight", () => {
     it("returns the bucketed weight for ranked users", async () => {
       mockCountEnabledProvidersInGroup.mockResolvedValueOnce(5);
       const entries = Array.from({ length: 20 }, (_, i) => entry(i + 1, (20 - i) * 1_000_000));
-      mockGetLeaderboardWithCache.mockResolvedValueOnce(entries);
+      mockFindWeeklyGroupScopedUsage.mockResolvedValueOnce(entries);
 
       const { getUserLoadWeight } = await import("@/lib/sticky/load-weight");
       // user #1 is heaviest, N=5 → heavy weight = 5

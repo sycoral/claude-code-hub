@@ -436,6 +436,58 @@ export async function findCustomRangeLeaderboard(
   return findLeaderboardWithTimezone("custom", timezone, dateRange, userFilters, includeModelStats);
 }
 
+export interface GroupScopedUsageEntry {
+  userId: number;
+  totalTokens: number;
+}
+
+/**
+ * 汇总本日历周（按系统时区周一 0 点 → 下周一 0 点）落到指定分组账号上的用量。
+ *
+ * 与 user leaderboard 不同：此函数按 `providers.groupTag` 过滤 ledger 行，
+ * 而不是按 `users.providerGroup` 过滤用户。也就是说，统计口径是"实际落号在
+ * 这个分组里"，跨工具（CC + Codex）但同组的用量会被合并；跨组用量不会污染
+ * 当前分组的权重计算。
+ *
+ * 仅用于 sticky load-balancer 的权重分桶。
+ */
+export async function findWeeklyGroupScopedUsage(
+  groupName: string
+): Promise<GroupScopedUsageEntry[]> {
+  if (!groupName) return [];
+
+  const timezone = await resolveSystemTimezone();
+  const dateCondition = buildDateCondition("weekly", timezone);
+  const groupCondition = sql`${groupName} = ANY(regexp_split_to_array(coalesce(${providers.groupTag}, ''), '\\s*[,，\n\r]+\\s*'))`;
+
+  const rows = await db
+    .select({
+      userId: usageLedger.userId,
+      totalTokens: sql<number>`COALESCE(
+        sum(
+          ${usageLedger.inputTokens} +
+          ${usageLedger.outputTokens} +
+          COALESCE(${usageLedger.cacheCreationInputTokens}, 0) +
+          COALESCE(${usageLedger.cacheReadInputTokens}, 0)
+        )::double precision,
+        0::double precision
+      )`,
+    })
+    .from(usageLedger)
+    .innerJoin(
+      providers,
+      and(sql`${usageLedger.finalProviderId} = ${providers.id}`, isNull(providers.deletedAt))
+    )
+    .innerJoin(users, and(sql`${usageLedger.userId} = ${users.id}`, isNull(users.deletedAt)))
+    .where(and(LEDGER_BILLING_CONDITION, dateCondition, groupCondition))
+    .groupBy(usageLedger.userId);
+
+  return rows.map((row) => ({
+    userId: row.userId,
+    totalTokens: row.totalTokens,
+  }));
+}
+
 /**
  * 查询今日供应商消耗排行榜（不限制数量）
  * 使用 SQL AT TIME ZONE 进行时区转换，确保"今日"基于系统时区
