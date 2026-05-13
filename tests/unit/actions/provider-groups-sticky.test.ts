@@ -6,6 +6,7 @@ const mockClearSticky = vi.hoisted(() => vi.fn());
 const mockCountActiveUsers = vi.hoisted(() => vi.fn());
 const mockGetUserLoadWeights = vi.hoisted(() => vi.fn());
 const mockGetGroupWeightThresholds = vi.hoisted(() => vi.fn());
+const mockFindWeeklyGroupScopedUsage = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/auth", () => ({
   getSession: mockGetSession,
@@ -19,6 +20,10 @@ vi.mock("@/lib/sticky/user-group-sticky", () => ({
   listActiveUsers: mockListActiveUsers,
   clearSticky: mockClearSticky,
   countActiveUsers: mockCountActiveUsers,
+}));
+
+vi.mock("@/repository/leaderboard", () => ({
+  findWeeklyGroupScopedUsage: mockFindWeeklyGroupScopedUsage,
 }));
 
 vi.mock("@/lib/sticky/load-weight", () => ({
@@ -65,6 +70,7 @@ beforeEach(() => {
     mediumWeight: 3,
     providerCount: 5,
   });
+  mockFindWeeklyGroupScopedUsage.mockResolvedValue([]);
 });
 
 describe("listStickyActiveUsers", () => {
@@ -107,6 +113,13 @@ describe("listStickyActiveUsers", () => {
         // 9 missing → defaults to NORMAL_WEIGHT (1)
       ])
     );
+    // 用量数据：组内本周 3 个有效用户（uid 7/8/10），uid 9 无用量
+    // 排名 desc by tokens: uid 7 (=#1, 9M), uid 10 (=#2, 5M), uid 8 (=#3, 1M)
+    mockFindWeeklyGroupScopedUsage.mockResolvedValueOnce([
+      { userId: 7, totalTokens: 9_000_000 },
+      { userId: 8, totalTokens: 1_000_000 },
+      { userId: 10, totalTokens: 5_000_000 },
+    ]);
     const { listStickyActiveUsers } = await import("@/actions/provider-groups");
     const res = await listStickyActiveUsers("team-a", 42);
     expect(res.ok).toBe(true);
@@ -117,6 +130,9 @@ describe("listStickyActiveUsers", () => {
         expireAtMs: 1700000005000,
         loadWeight: 5,
         loadTier: "heavy",
+        weeklyTokens: 9_000_000,
+        rank: 1,
+        rankTotal: 3,
       },
       {
         uid: 8,
@@ -124,6 +140,9 @@ describe("listStickyActiveUsers", () => {
         expireAtMs: 1700000010000,
         loadWeight: 3,
         loadTier: "medium",
+        weeklyTokens: 1_000_000,
+        rank: 3,
+        rankTotal: 3,
       },
       {
         uid: 9,
@@ -131,6 +150,9 @@ describe("listStickyActiveUsers", () => {
         expireAtMs: 1700000020000,
         loadWeight: 1,
         loadTier: "normal",
+        weeklyTokens: 0,
+        rank: null,
+        rankTotal: 3,
       },
     ]);
   });

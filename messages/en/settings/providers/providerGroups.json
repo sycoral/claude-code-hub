@@ -95,7 +95,9 @@
       "weightHeavy": "Heavy",
       "weightMedium": "Medium",
       "weightNormal": "Normal",
-      "weightTooltip": "Derived from this group's past-7-days token-usage rank; bucket sizes scale with the group's enabled-account count. Only affects selection in weighted-load mode"
+      "weightTooltip": "Derived from this group's past-7-days token-usage rank; bucket sizes scale with the group's enabled-account count. Only affects selection in weighted-load mode",
+      "usageLine": "This week {tokens} · #{rank}/{total} in group",
+      "usageLineNone": "No usage this week"
     }
   }
 }

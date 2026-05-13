@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatTokenAmount } from "@/lib/utils/token";
 
 function tierBadgeClass(tier: StickyActiveUser["loadTier"]): string {
   switch (tier) {
@@ -175,6 +176,15 @@ export function StickyActiveUsersDialog({
                       <TableCell>
                         <div className="font-medium">{item.name ?? `#${item.uid}`}</div>
                         <div className="text-xs text-muted-foreground">uid {item.uid}</div>
+                        <div className="text-xs text-muted-foreground tabular-nums">
+                          {item.rank != null
+                            ? t("usageLine", {
+                                tokens: formatTokenAmount(item.weeklyTokens),
+                                rank: item.rank,
+                                total: item.rankTotal,
+                              })
+                            : t("usageLineNone")}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <span

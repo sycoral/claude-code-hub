@@ -95,7 +95,9 @@
       "weightHeavy": "ヘビー",
       "weightMedium": "ミドル",
       "weightNormal": "通常",
-      "weightTooltip": "グループ内の過去 7 日間トークン使用量ランクから算出；バケットサイズはグループ内の有効アカウント数に連動。加重負荷モードでのみ選択に影響"
+      "weightTooltip": "グループ内の過去 7 日間トークン使用量ランクから算出；バケットサイズはグループ内の有効アカウント数に連動。加重負荷モードでのみ選択に影響",
+      "usageLine": "今週 {tokens} · グループ内 #{rank}/{total}",
+      "usageLineNone": "今週の使用量なし"
     }
   }
 }

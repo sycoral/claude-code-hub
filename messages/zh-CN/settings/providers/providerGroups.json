@@ -95,7 +95,9 @@
       "weightHeavy": "重度",
       "weightMedium": "中度",
       "weightNormal": "普通",
-      "weightTooltip": "根据近 7 天 token 用量在组内排名计算；分位与组内启用账号数挂钩；仅在「按加权负载」模式下影响选号"
+      "weightTooltip": "根据近 7 天 token 用量在组内排名计算；分位与组内启用账号数挂钩；仅在「按加权负载」模式下影响选号",
+      "usageLine": "本周 {tokens} · 组内 #{rank}/{total}",
+      "usageLineNone": "本周无用量"
     }
   }
 }

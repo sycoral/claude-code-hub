@@ -23,6 +23,7 @@ import {
 } from "@/lib/sticky/load-weight";
 import { clearSticky, countActiveUsers, listActiveUsers } from "@/lib/sticky/user-group-sticky";
 import { ERROR_CODES } from "@/lib/utils/error-messages";
+import { findWeeklyGroupScopedUsage } from "@/repository/leaderboard";
 import {
   countProvidersUsingGroup,
   findProviderGroupById,
@@ -408,6 +409,12 @@ export interface StickyActiveUser {
   expireAtMs: number;
   loadWeight: number;
   loadTier: LoadTier;
+  // 本周（按组）token 总量；未参与排名（=0）记为 0
+  weeklyTokens: number;
+  // 在组内（按 tokens desc）的排名，1-based；无用量则为 null
+  rank: number | null;
+  // 组内本周有用量的用户总数（=排名分母）
+  rankTotal: number;
 }
 
 /**
@@ -438,15 +445,24 @@ export async function listStickyActiveUsers(
     }
 
     const uids = entries.map((entry) => entry.uid);
-    const [userRows, weights, thresholds] = await Promise.all([
+    const [userRows, weights, thresholds, usageEntries] = await Promise.all([
       db
         .select({ id: usersTable.id, name: usersTable.name })
         .from(usersTable)
         .where(inArray(usersTable.id, uids)),
       getUserLoadWeights(groupName),
       getGroupWeightThresholds(groupName),
+      findWeeklyGroupScopedUsage(groupName),
     ]);
     const nameById = new Map(userRows.map((row) => [row.id, row.name] as const));
+
+    // 复用 load-weight 的过滤口径：tokens>0 才入排名；同 tokens 按 uid 升序稳定排
+    const ranked = usageEntries
+      .filter((e) => e.totalTokens > 0)
+      .sort((a, b) => b.totalTokens - a.totalTokens || a.userId - b.userId);
+    const rankTotal = ranked.length;
+    const rankByUid = new Map<number, number>(ranked.map((e, i) => [e.userId, i + 1]));
+    const tokensByUid = new Map<number, number>(usageEntries.map((e) => [e.userId, e.totalTokens]));
 
     const data: StickyActiveUser[] = entries.map((entry) => {
       const loadWeight = weights.get(entry.uid) ?? NORMAL_WEIGHT;
@@ -456,6 +472,9 @@ export async function listStickyActiveUsers(
         expireAtMs: entry.expireAtMs,
         loadWeight,
         loadTier: classifyLoadTier(loadWeight, thresholds),
+        weeklyTokens: tokensByUid.get(entry.uid) ?? 0,
+        rank: rankByUid.get(entry.uid) ?? null,
+        rankTotal,
       };
     });
     return { ok: true, data };
