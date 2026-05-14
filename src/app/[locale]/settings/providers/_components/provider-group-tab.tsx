@@ -841,6 +841,7 @@ function GroupMembersPanel({
               {isMultiSelectMode ? <TableHead className="w-[44px]" /> : null}
               <TableHead>{t("providerName")}</TableHead>
               <TableHead className="w-[180px]">{t("providerType")}</TableHead>
+              <TableHead className="w-[100px]">{t("enabledStatus")}</TableHead>
               <TableHead className="w-[180px]">{t("effectivePriority")}</TableHead>
               {stickyEnabled ? (
                 <TableHead className="w-[180px]">
@@ -1020,6 +1021,14 @@ function MemberRow({
           <TypeIcon className={cn("h-3.5 w-3.5", typeConfig.iconColor)} aria-hidden />
           <span>{typeLabel}</span>
         </Badge>
+      </TableCell>
+      <TableCell>
+        <InlineEnabledToggle
+          providerId={member.id}
+          isEnabled={member.isEnabled}
+          canEdit={canEdit}
+          onSaved={onSaved}
+        />
       </TableCell>
       <TableCell>
         {canEdit ? (
@@ -1489,5 +1498,57 @@ function InlineCapOverridePopover({
         {content}
       </PopoverContent>
     </Popover>
+  );
+}
+
+interface InlineEnabledToggleProps {
+  providerId: number;
+  isEnabled: boolean;
+  canEdit: boolean;
+  onSaved: () => void;
+}
+
+function InlineEnabledToggle({
+  providerId,
+  isEnabled,
+  canEdit,
+  onSaved,
+}: InlineEnabledToggleProps) {
+  const t = useTranslations("settings.providers.providerGroups");
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
+
+  const handleChange = useCallback(
+    async (checked: boolean) => {
+      if (saving) return;
+      setSaving(true);
+      try {
+        const res = await editProvider(providerId, { is_enabled: checked });
+        if (!res.ok) {
+          toast.error(res.error ?? t("toggleEnabledFailed"));
+          return;
+        }
+        toast.success(checked ? t("enableSuccess") : t("disableSuccess"));
+        await invalidateProviderQueries(queryClient);
+        onSaved();
+      } finally {
+        setSaving(false);
+      }
+    },
+    [onSaved, providerId, queryClient, saving, t]
+  );
+
+  return (
+    <div className="flex items-center gap-2">
+      <Switch
+        checked={isEnabled}
+        onCheckedChange={handleChange}
+        disabled={!canEdit || saving}
+        aria-label={t("enabledStatus")}
+      />
+      <span className={cn("text-xs", isEnabled ? "text-foreground" : "text-muted-foreground")}>
+        {isEnabled ? t("enabledLabel") : t("disabledLabel")}
+      </span>
+    </div>
   );
 }
