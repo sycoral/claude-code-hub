@@ -318,6 +318,10 @@ export interface Provider {
   costMultiplier: number;
   groupTag: string | null;
 
+  // Per-provider override of `providerGroups.maxActiveUsersPerProvider`.
+  // null = inherit group default.
+  maxActiveUsersOverride: number | null;
+
   // 供应商类型：扩展支持 4 种类型
   providerType: ProviderType;
   // 是否透传客户端 IP
@@ -435,6 +439,8 @@ export interface ProviderDisplay {
   groupPriorities: Record<string, number> | null;
   costMultiplier: number;
   groupTag: string | null;
+  // Per-provider override of group's active-user cap. null = inherit.
+  maxActiveUsersOverride: number | null;
   // 供应商类型
   providerType: ProviderType;
   // 供应商聚合实体（按官网域名归一）
@@ -538,6 +544,9 @@ export interface CreateProviderData {
   cost_multiplier?: number;
   group_tag?: string | null;
 
+  // Per-provider override of group's active-user cap. null = inherit.
+  max_active_users_override?: number | null;
+
   // 供应商类型和模型配置
   provider_type?: ProviderType;
   preserve_client_ip?: boolean;
@@ -618,6 +627,9 @@ export interface UpdateProviderData {
   group_priorities?: Record<string, number> | null;
   cost_multiplier?: number;
   group_tag?: string | null;
+
+  // Per-provider override of group's active-user cap. null = inherit.
+  max_active_users_override?: number | null;
 
   // 供应商类型和模型配置
   provider_type?: ProviderType;

@@ -1,0 +1,1 @@
+ALTER TABLE "providers" ADD COLUMN "max_active_users_override" integer;

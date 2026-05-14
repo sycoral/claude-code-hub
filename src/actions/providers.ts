@@ -307,6 +307,7 @@ export async function getProviders(): Promise<ProviderDisplay[]> {
         groupPriorities: provider.groupPriorities,
         costMultiplier: provider.costMultiplier,
         groupTag: provider.groupTag,
+        maxActiveUsersOverride: provider.maxActiveUsersOverride,
         providerType: provider.providerType,
         providerVendorId: provider.providerVendorId,
         preserveClientIp: provider.preserveClientIp,
@@ -720,6 +721,7 @@ export async function editProvider(
     cost_multiplier?: number;
     group_tag?: string | null;
     group_priorities?: Record<string, number> | null;
+    max_active_users_override?: number | null;
     provider_type?: ProviderType;
     preserve_client_ip?: boolean;
     disable_session_reuse?: boolean;

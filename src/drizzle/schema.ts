@@ -211,6 +211,10 @@ export const providers = pgTable('providers', {
   costMultiplier: numeric('cost_multiplier', { precision: 10, scale: 4 }).default('1.0'),
   groupTag: varchar('group_tag', { length: 255 }),
 
+  // Per-provider override for `providerGroups.maxActiveUsersPerProvider`.
+  // null = inherit group default; >=1 takes precedence over the group setting.
+  maxActiveUsersOverride: integer('max_active_users_override'),
+
   // 供应商类型：扩展支持 5 种类型
   // - claude: Anthropic 提供商（标准认证）
   // - claude-auth: Claude 中转服务（仅 Bearer 认证，不发送 x-api-key）

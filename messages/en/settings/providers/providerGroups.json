@@ -97,7 +97,18 @@
       "weightNormal": "Normal",
       "weightTooltip": "Derived from this group's past-7-days token-usage rank; bucket sizes scale with the group's enabled-account count. Only affects selection in weighted-load mode",
       "usageLine": "This week {tokens} · #{rank}/{total} in group",
-      "usageLineNone": "No usage this week"
+      "usageLineNone": "No usage this week",
+      "capOverrideLabel": "Per-account active-user cap",
+      "capOverrideHelper": "Empty = inherit group default ({value})",
+      "capOverrideHelperNoDefault": "Empty = inherit group default (unlimited)",
+      "capOverridePlaceholder": "Default: {value}",
+      "capOverridePlaceholderNoDefault": "Empty = unlimited",
+      "capOverrideMarker": "Override set for this account",
+      "capInheritGroup": "Inherits group default",
+      "capOverrideClear": "Inherit group default",
+      "capOverrideInvalid": "Enter an integer >= 1",
+      "capOverrideSaveSuccess": "Cap updated",
+      "capOverrideSaveFailed": "Save failed"
     }
   }
 }

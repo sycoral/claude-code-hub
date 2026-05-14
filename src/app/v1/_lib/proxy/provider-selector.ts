@@ -4,6 +4,7 @@ import { PROVIDER_GROUP } from "@/lib/constants/provider.constants";
 import { logger } from "@/lib/logger";
 import { RateLimitService } from "@/lib/rate-limit";
 import { SessionManager } from "@/lib/session-manager";
+import { resolveEffectiveProviderCap } from "@/lib/sticky/cap-resolution";
 import {
   bindSticky,
   clearSticky,
@@ -1207,25 +1208,40 @@ export class ProxyProviderResolver {
     if (stickyGroup && stickyUid != null && topPriorityProviders.length > 0) {
       const stickyCfg = await getStickyConfig(stickyGroup).catch(() => null);
       if (stickyCfg?.enabled) {
-        // Cap filter: skip providers already at cap unless user is already counted there.
-        if (stickyCfg.cap != null) {
+        // Cap filter: per-provider override falls back to the group default.
+        // A provider with override=null and group default=null is unbounded; one
+        // with override>=1 always uses its own value even when the group default is null.
+        const groupDefaultCap = stickyCfg.cap;
+        const effectiveCapFor = (p: Provider): number | null =>
+          resolveEffectiveProviderCap(p, groupDefaultCap);
+        const anyCapApplies = topPriorityProviders.some((p) => effectiveCapFor(p) != null);
+
+        if (anyCapApplies) {
           const eligible: Provider[] = [];
           for (const p of topPriorityProviders) {
+            const cap = effectiveCapFor(p);
+            if (cap == null) {
+              eligible.push(p);
+              continue;
+            }
             const alreadyOn = await isUserCountedOn(p.id, stickyGroup, stickyUid);
             if (alreadyOn) {
               eligible.push(p);
               continue;
             }
             const count = await countActiveUsers(p.id, stickyGroup);
-            if (count < stickyCfg.cap) {
+            if (count < cap) {
               eligible.push(p);
             }
           }
           if (eligible.length === 0) {
             logger.warn("ProviderSelector: All providers in group at user cap", {
               group: stickyGroup,
-              cap: stickyCfg.cap,
-              candidates: topPriorityProviders.map((p) => p.name),
+              groupDefaultCap,
+              candidates: topPriorityProviders.map((p) => ({
+                name: p.name,
+                cap: effectiveCapFor(p),
+              })),
             });
             throw new GroupCapacityFullError(stickyGroup);
           }

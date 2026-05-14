@@ -97,6 +97,7 @@ export function toProvider(dbProvider: any): Provider {
     groupPriorities: dbProvider?.groupPriorities ?? null,
     costMultiplier: dbProvider?.costMultiplier ? parseFloat(dbProvider.costMultiplier) : 1.0,
     groupTag: dbProvider?.groupTag ?? null,
+    maxActiveUsersOverride: dbProvider?.maxActiveUsersOverride ?? null,
     providerType: dbProvider?.providerType ?? "claude",
     preserveClientIp: dbProvider?.preserveClientIp ?? false,
     disableSessionReuse: dbProvider?.disableSessionReuse ?? false,

@@ -1037,10 +1037,20 @@ function MemberRow({
       {stickyEnabled ? (
         <TableCell>
           <div className="flex items-center gap-2">
-            <span className="tabular-nums text-sm font-medium">
-              {activeCount}
-              <span className="text-muted-foreground"> / {stickyCap ?? "∞"}</span>
-            </span>
+            <span className="tabular-nums text-sm font-medium">{activeCount}</span>
+            <span className="text-muted-foreground">/</span>
+            {canEdit ? (
+              <InlineCapOverridePopover
+                providerId={member.id}
+                override={member.maxActiveUsersOverride}
+                groupDefault={stickyCap}
+                onSaved={onSaved}
+              />
+            ) : (
+              <span className="tabular-nums text-muted-foreground">
+                {member.maxActiveUsersOverride ?? stickyCap ?? "∞"}
+              </span>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -1242,6 +1252,223 @@ function InlineTextEditPopover({
                 </div>
               </div>
             </div>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="bottom"
+        sideOffset={6}
+        className="w-auto p-3"
+        onPointerDown={stopPropagation}
+        onClick={stopPropagation}
+      >
+        {content}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface InlineCapOverridePopoverProps {
+  providerId: number;
+  override: number | null;
+  groupDefault: number | null;
+  onSaved: () => void;
+}
+
+function InlineCapOverridePopover({
+  providerId,
+  override,
+  groupDefault,
+  onSaved,
+}: InlineCapOverridePopoverProps) {
+  const t = useTranslations("settings.providers.providerGroups.advanced.activeUsers");
+  const tParent = useTranslations("settings.providers.providerGroups");
+  const queryClient = useQueryClient();
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(() => (override != null ? String(override) : ""));
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const effective = override ?? groupDefault;
+  const trimmedDraft = draft.trim();
+
+  const validationError = useMemo(() => {
+    if (trimmedDraft.length === 0) return null;
+    const value = Number(trimmedDraft);
+    if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
+      return t("capOverrideInvalid");
+    }
+    return null;
+  }, [trimmedDraft, t]);
+
+  const canSave = !saving && validationError == null;
+
+  useEffect(() => {
+    if (!open) return;
+    const raf = requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open]);
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (nextOpen) {
+        setDraft(override != null ? String(override) : "");
+      } else {
+        setDraft(override != null ? String(override) : "");
+        setSaving(false);
+      }
+      setOpen(nextOpen);
+    },
+    [override]
+  );
+
+  const persist = useCallback(
+    async (nextOverride: number | null) => {
+      setSaving(true);
+      try {
+        const res = await editProvider(providerId, { max_active_users_override: nextOverride });
+        if (!res.ok) {
+          toast.error(res.error ?? t("capOverrideSaveFailed"));
+          return false;
+        }
+        toast.success(t("capOverrideSaveSuccess"));
+        await invalidateProviderQueries(queryClient);
+        onSaved();
+        setOpen(false);
+        return true;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [onSaved, providerId, queryClient, t]
+  );
+
+  const handleSave = useCallback(async () => {
+    if (!canSave) return;
+    const nextOverride = trimmedDraft.length === 0 ? null : Number(trimmedDraft);
+    await persist(nextOverride);
+  }, [canSave, persist, trimmedDraft]);
+
+  const handleClear = useCallback(async () => {
+    await persist(null);
+  }, [persist]);
+
+  const stopPropagation = (event: React.SyntheticEvent) => {
+    event.stopPropagation();
+  };
+
+  const triggerLabel = effective ?? "∞";
+
+  const trigger = (
+    <button
+      type="button"
+      className={cn(
+        "tabular-nums rounded-sm underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+        override != null
+          ? "font-medium text-foreground hover:underline"
+          : "text-muted-foreground hover:underline"
+      )}
+      onPointerDown={stopPropagation}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (!isDesktop) handleOpenChange(true);
+      }}
+      title={override != null ? t("capOverrideMarker") : t("capInheritGroup")}
+    >
+      {triggerLabel}
+      {override != null ? <span className="ml-0.5 text-[10px] text-primary">*</span> : null}
+    </button>
+  );
+
+  const inputProps = {
+    ref: inputRef,
+    value: draft,
+    placeholder:
+      groupDefault != null
+        ? t("capOverridePlaceholder", { value: groupDefault })
+        : t("capOverridePlaceholderNoDefault"),
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) => setDraft(event.target.value),
+    disabled: saving,
+    "aria-label": t("capOverrideLabel"),
+    "aria-invalid": validationError != null,
+    type: "number" as const,
+    inputMode: "numeric" as const,
+    step: "1",
+    onPointerDown: stopPropagation,
+    onClick: stopPropagation,
+    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
+      event.stopPropagation();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleOpenChange(false);
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        void handleSave();
+      }
+    },
+  };
+
+  const content = (
+    <div className="grid gap-2">
+      <div className="hidden text-xs font-medium md:block">{t("capOverrideLabel")}</div>
+      <Input {...inputProps} className="w-full md:w-32 tabular-nums" />
+      <div className="text-xs text-muted-foreground">
+        {groupDefault != null
+          ? t("capOverrideHelper", { value: groupDefault })
+          : t("capOverrideHelperNoDefault")}
+      </div>
+      {validationError ? <div className="text-xs text-destructive">{validationError}</div> : null}
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={handleClear}
+          disabled={saving || override == null}
+        >
+          {t("capOverrideClear")}
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => handleOpenChange(false)}
+            disabled={saving}
+          >
+            {tParent("cancel")}
+          </Button>
+          <Button type="button" size="sm" onClick={handleSave} disabled={!canSave}>
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {tParent("save")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!isDesktop) {
+    return (
+      <>
+        {trigger}
+        <Drawer open={open} onOpenChange={handleOpenChange}>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>{t("capOverrideLabel")}</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-6">{content}</div>
           </DrawerContent>
         </Drawer>
       </>

@@ -203,6 +203,7 @@ export async function createProvider(providerData: CreateProviderData): Promise<
     costMultiplier:
       providerData.cost_multiplier != null ? providerData.cost_multiplier.toString() : "1.0",
     groupTag: providerData.group_tag,
+    maxActiveUsersOverride: providerData.max_active_users_override ?? null,
     providerType: providerData.provider_type,
     preserveClientIp: providerData.preserve_client_ip ?? false,
     disableSessionReuse: providerData.disable_session_reuse ?? false,
@@ -290,6 +291,7 @@ export async function createProvider(providerData: CreateProviderData): Promise<
         priority: providers.priority,
         costMultiplier: providers.costMultiplier,
         groupTag: providers.groupTag,
+        maxActiveUsersOverride: providers.maxActiveUsersOverride,
         providerType: providers.providerType,
         preserveClientIp: providers.preserveClientIp,
         disableSessionReuse: providers.disableSessionReuse,
@@ -377,6 +379,7 @@ export async function findProviderList(
       groupPriorities: providers.groupPriorities,
       costMultiplier: providers.costMultiplier,
       groupTag: providers.groupTag,
+      maxActiveUsersOverride: providers.maxActiveUsersOverride,
       providerType: providers.providerType,
       preserveClientIp: providers.preserveClientIp,
       disableSessionReuse: providers.disableSessionReuse,
@@ -464,6 +467,7 @@ export async function findAllProvidersFresh(): Promise<Provider[]> {
       groupPriorities: providers.groupPriorities,
       costMultiplier: providers.costMultiplier,
       groupTag: providers.groupTag,
+      maxActiveUsersOverride: providers.maxActiveUsersOverride,
       providerType: providers.providerType,
       preserveClientIp: providers.preserveClientIp,
       disableSessionReuse: providers.disableSessionReuse,
@@ -555,6 +559,7 @@ export async function findProviderById(id: number): Promise<Provider | null> {
       groupPriorities: providers.groupPriorities,
       costMultiplier: providers.costMultiplier,
       groupTag: providers.groupTag,
+      maxActiveUsersOverride: providers.maxActiveUsersOverride,
       providerType: providers.providerType,
       preserveClientIp: providers.preserveClientIp,
       disableSessionReuse: providers.disableSessionReuse,
@@ -638,6 +643,8 @@ export async function updateProvider(
     dbData.costMultiplier =
       providerData.cost_multiplier != null ? providerData.cost_multiplier.toString() : "1.0";
   if (providerData.group_tag !== undefined) dbData.groupTag = providerData.group_tag;
+  if (providerData.max_active_users_override !== undefined)
+    dbData.maxActiveUsersOverride = providerData.max_active_users_override;
   if (providerData.provider_type !== undefined) dbData.providerType = providerData.provider_type;
   if (providerData.preserve_client_ip !== undefined)
     dbData.preserveClientIp = providerData.preserve_client_ip;
@@ -800,6 +807,7 @@ export async function updateProvider(
         groupPriorities: providers.groupPriorities,
         costMultiplier: providers.costMultiplier,
         groupTag: providers.groupTag,
+        maxActiveUsersOverride: providers.maxActiveUsersOverride,
         providerType: providers.providerType,
         preserveClientIp: providers.preserveClientIp,
         disableSessionReuse: providers.disableSessionReuse,

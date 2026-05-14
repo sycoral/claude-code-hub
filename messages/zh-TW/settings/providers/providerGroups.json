@@ -97,7 +97,18 @@
       "weightNormal": "普通",
       "weightTooltip": "根據近 7 天 token 用量在組內排名計算；分位與組內啟用帳號數掛鉤；僅在「按加權負載」模式下影響選號",
       "usageLine": "本週 {tokens} · 組內 #{rank}/{total}",
-      "usageLineNone": "本週無用量"
+      "usageLineNone": "本週無用量",
+      "capOverrideLabel": "帳號活躍用戶上限",
+      "capOverrideHelper": "留空 = 沿用組預設值（{value}）",
+      "capOverrideHelperNoDefault": "留空 = 沿用組預設值（無上限）",
+      "capOverridePlaceholder": "預設: {value}",
+      "capOverridePlaceholderNoDefault": "留空 = 不限",
+      "capOverrideMarker": "已為該帳號單獨設置上限",
+      "capInheritGroup": "沿用組預設值",
+      "capOverrideClear": "沿用組預設",
+      "capOverrideInvalid": "請輸入大於等於 1 的整數",
+      "capOverrideSaveSuccess": "上限已更新",
+      "capOverrideSaveFailed": "保存失敗"
     }
   }
 }
